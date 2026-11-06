@@ -1,0 +1,1478 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Inspektionsplaner MFH</title>
+<style>html{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+/* Layout: Kopfzeile mit Logo und Werkzeugen, links Parameter + Einsatztage, rechts Adress-Reiter mit Wohnungsliste und Terminplan */
+:root{
+  --bg:#f5f7f9; --surface:#ffffff; --sunken:#eef2f5; --line:#d6dde4; --fg:#16202a; --muted:#56636f;
+  --accent:#1d5d8c; --accent-fg:#ffffff; --accent-soft:#e3edf6;
+  --ok:#2c7a4b; --warn:#8f6200; --warn-soft:#fbf1d8; --err:#b3362f;
+  --k-gross:#1d5d8c; --k-klein:#6a8fb0; --k-allg:#8a6d3b; --k-tr:#5f6f7f;
+  --f-display:"Archivo",system-ui,sans-serif; --f-body:"Source Sans 3",system-ui,sans-serif; --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12171d; --surface:#1a2129; --sunken:#151b22; --line:#2c3743; --fg:#e3e9ef; --muted:#93a1af;
+  --accent:#5fa3d6; --accent-fg:#0d1620; --accent-soft:#1f3346;
+  --ok:#5fbf86; --warn:#e0b04a; --warn-soft:#33290f; --err:#ef7a72;
+  --k-gross:#5fa3d6; --k-klein:#8fb3d2; --k-allg:#c9a464; --k-tr:#8d9cab; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12171d; --surface:#1a2129; --sunken:#151b22; --line:#2c3743; --fg:#e3e9ef; --muted:#93a1af;
+  --accent:#5fa3d6; --accent-fg:#0d1620; --accent-soft:#1f3346;
+  --ok:#5fbf86; --warn:#e0b04a; --warn-soft:#33290f; --err:#ef7a72;
+  --k-gross:#5fa3d6; --k-klein:#8fb3d2; --k-allg:#c9a464; --k-tr:#8d9cab; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.45 var(--f-body);padding-inline:16px;padding-block:0 32px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+td.t,input.n,.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+header.bar{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;padding-block:14px;border-bottom:1px solid var(--line);margin-bottom:16px}
+.brand{display:flex;align-items:center;gap:14px;min-width:0}
+.brand img{height:34px;width:auto;max-width:200px;display:block}
+.brand .word{font-family:var(--f-display);font-weight:700;font-size:15px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);border-right:1px solid var(--line);padding-right:14px}
+.brand h1{font-size:19px;font-weight:600;letter-spacing:-.01em}
+.brand .src{font-size:13px;color:var(--muted);display:block}
+.actions{margin-left:auto;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.sep{width:1px;align-self:stretch;background:var(--line)}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:6px 11px;cursor:pointer;font-weight:600;font-size:14px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn.sm{padding:3px 9px;font-size:13px}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn.ghost:hover{color:var(--err)}
+.btn.danger{color:var(--err)}
+.toggle{display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer}
+select.theme{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:5px 8px;font-size:14px}
+#msg{font-size:13px;color:var(--muted);flex-basis:100%;min-height:1em}
+#msg.err{color:var(--err)} #msg.ok{color:var(--ok)}
+
+.layout{display:grid;grid-template-columns:290px minmax(0,1fr) minmax(360px,30vw);gap:20px;align-items:start}
+@media (max-width:1440px){.layout{grid-template-columns:290px minmax(0,1fr)}.mapcol{grid-column:1 / -1;position:static!important;height:480px!important}}
+@media (max-width:880px){.layout{grid-template-columns:minmax(0,1fr)}}
+
+.mapcol{position:sticky;top:12px;height:calc(100vh - 24px);min-height:420px;background:var(--surface);border:1px solid var(--line);border-radius:8px;display:flex;flex-direction:column;overflow:hidden}
+.mapbar{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line)}
+.mapbar h2{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:600;margin-right:auto}
+.mapbar select{border:1px solid var(--line);background:var(--sunken);border-radius:5px;padding:3px 6px;font-size:13px}
+.btn.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+#map{flex:1 1 auto;min-height:220px;background:var(--sunken)}
+.mapnote{font-size:12px;color:var(--warn);background:var(--warn-soft);padding:4px 10px;border-bottom:1px solid var(--line)}
+.mlist{list-style:none;margin:0;padding:6px 10px;max-height:34%;overflow:auto;border-top:1px solid var(--line);display:grid;gap:2px;font-size:13px}
+.mlist li{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:8px;align-items:center;cursor:pointer;padding:2px 4px;border-radius:4px}
+.mlist li:hover,.mlist li.act{background:var(--accent-soft)}
+.mlist .n{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--pc);color:#fff;font:600 11px var(--f-mono)}
+.mlist .a{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mlist .d{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.pin{background:none;border:0}
+.pin span{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--pc);color:#fff;font:600 12px var(--f-mono);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+.pin.act span{outline:3px solid var(--pc);outline-offset:2px}
+
+/* Leaflet 1.9 Grundstil (eingebettet; externe Stylesheets sind in Artifacts gesperrt) */
+.leaflet-pane,.leaflet-tile,.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-tile-container,.leaflet-pane>svg,.leaflet-pane>canvas,.leaflet-zoom-box,.leaflet-image-layer,.leaflet-layer{position:absolute;left:0;top:0}
+.leaflet-container{overflow:hidden;-webkit-tap-highlight-color:transparent;font:12px/1.4 var(--f-body)}
+.leaflet-tile,.leaflet-marker-icon,.leaflet-marker-shadow{user-select:none;-webkit-user-drag:none}
+.leaflet-container img.leaflet-tile,.leaflet-container .leaflet-marker-pane img,.leaflet-container .leaflet-tile-pane img,.leaflet-container img.leaflet-image-layer{max-width:none!important;max-height:none!important;width:auto;padding:0}
+.leaflet-container img.leaflet-tile{mix-blend-mode:normal}
+.leaflet-tile{filter:inherit;visibility:hidden}.leaflet-tile-loaded{visibility:inherit}
+.leaflet-zoom-box{width:0;height:0;box-sizing:border-box;z-index:800}
+.leaflet-pane{z-index:400}.leaflet-tile-pane{z-index:200}.leaflet-overlay-pane{z-index:400}.leaflet-shadow-pane{z-index:500}.leaflet-marker-pane{z-index:600}.leaflet-tooltip-pane{z-index:650}.leaflet-popup-pane{z-index:700}
+.leaflet-map-pane canvas{z-index:100}.leaflet-map-pane svg{z-index:200}
+.leaflet-control{position:relative;z-index:800;pointer-events:auto;float:left;clear:both}
+.leaflet-top,.leaflet-bottom{position:absolute;z-index:1000;pointer-events:none}
+.leaflet-top{top:0}.leaflet-right{right:0}.leaflet-bottom{bottom:0}.leaflet-left{left:0}
+.leaflet-right .leaflet-control{float:right}
+.leaflet-top .leaflet-control{margin-top:10px}.leaflet-bottom .leaflet-control{margin-bottom:10px}.leaflet-left .leaflet-control{margin-left:10px}.leaflet-right .leaflet-control{margin-right:10px}
+.leaflet-zoom-animated{transform-origin:0 0}
+.leaflet-zoom-anim .leaflet-zoom-animated{transition:transform .25s cubic-bezier(0,0,.25,1)}
+.leaflet-zoom-anim .leaflet-tile,.leaflet-pan-anim .leaflet-tile{transition:none}
+.leaflet-zoom-anim .leaflet-zoom-hide{visibility:hidden}
+.leaflet-interactive{cursor:pointer}.leaflet-grab{cursor:grab}
+.leaflet-crosshair,.leaflet-crosshair .leaflet-interactive{cursor:crosshair}
+.leaflet-dragging .leaflet-grab{cursor:move}
+.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-image-layer,.leaflet-pane>svg path,.leaflet-tile-container{pointer-events:none}
+.leaflet-marker-icon.leaflet-interactive,.leaflet-image-layer.leaflet-interactive,.leaflet-pane>svg path.leaflet-interactive{pointer-events:auto}
+.leaflet-bar{box-shadow:0 1px 5px rgba(0,0,0,.4);border-radius:4px}
+.leaflet-bar a{background:var(--surface);color:var(--fg);border-bottom:1px solid var(--line);width:28px;height:28px;line-height:28px;display:block;text-align:center;text-decoration:none;font:600 16px var(--f-mono)}
+.leaflet-bar a:first-child{border-radius:4px 4px 0 0}.leaflet-bar a:last-child{border-radius:0 0 4px 4px;border-bottom:none}
+.leaflet-control-attribution{background:color-mix(in srgb,var(--surface) 85%,transparent);margin:0;padding:0 5px;color:var(--muted);font-size:10px}
+.leaflet-control-attribution a{color:var(--accent)}
+.leaflet-control-scale-line{border:2px solid var(--muted);border-top:none;line-height:1.1;padding:2px 5px 1px;font-size:11px;white-space:nowrap;background:color-mix(in srgb,var(--surface) 80%,transparent);color:var(--fg)}
+.leaflet-tooltip{position:absolute;padding:2px 6px;background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:3px;white-space:nowrap;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.3);font-size:12px}
+
+.gkw{font-size:11px;color:var(--muted);padding:2px 6px;border-left:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--surface);white-space:nowrap;overflow:hidden;font-family:var(--f-mono)}
+.glab.kw{height:auto;min-height:20px;background:var(--surface)}
+.gh.free,.gc.free{background:repeating-linear-gradient(135deg,var(--sunken) 0 3px,transparent 3px 7px)}
+.gh.free .dl{left:0;right:0;text-align:center;top:3px;font-weight:500;color:var(--muted);line-height:1.15}
+.gh.wkend .dl{color:var(--muted)}
+.gmode{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-left:auto}
+.gmode button{border:0;background:var(--surface);padding:3px 10px;font-size:13px;cursor:pointer;color:var(--muted)}
+.gmode button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg)}
+
+aside.params{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:grid;gap:16px}
+aside.params h2{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:600;display:flex;justify-content:space-between;align-items:center}
+fieldset{border:0;padding:0;margin:0;display:grid;gap:7px;min-width:0}
+.prow{display:grid;grid-template-columns:1fr 92px;align-items:center;gap:8px;font-size:14px}
+.prow input,.prow select{width:100%;border:1px solid var(--line);background:var(--sunken);border-radius:5px;padding:4px 6px;font-family:var(--f-mono);font-size:13px}
+.prow.wide{grid-template-columns:1fr 136px}
+.days{display:flex;gap:4px;flex-wrap:wrap}
+.days label{display:flex;align-items:center;gap:3px;font-size:13px;border:1px solid var(--line);border-radius:5px;padding:2px 6px;cursor:pointer}
+.chk{display:flex;gap:8px;align-items:flex-start;font-size:14px}
+.reset{justify-self:start}
+
+.dlist{display:grid;gap:4px}
+.drow{display:grid;grid-template-columns:44px 1fr auto;gap:6px;align-items:center;font-size:13px;padding:3px 6px;border-radius:5px;border:1px solid transparent}
+.drow.ov{border-color:var(--accent);background:var(--accent-soft)}
+.drow.bad{border-color:var(--warn);background:var(--warn-soft)}
+.drow .nr{font-family:var(--f-mono);color:var(--muted)}
+.drow input{border:1px solid var(--line);background:var(--surface);border-radius:4px;padding:2px 4px;font-family:var(--f-mono);font-size:13px;width:100%;min-width:0}
+.drow .who{grid-column:2 / 4;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+
+.tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line);align-items:flex-end}
+.tab{border:1px solid transparent;border-bottom:none;background:none;padding:8px 12px;border-radius:6px 6px 0 0;cursor:pointer;white-space:nowrap;font-size:14px;color:var(--muted);display:flex;gap:8px;align-items:center}
+.tab[aria-selected="true"]{background:var(--surface);border-color:var(--line);color:var(--fg);font-weight:600;margin-bottom:-1px}
+.tab .cnt{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.tab.off{opacity:.55;text-decoration:line-through}
+.tab.add{color:var(--accent);font-weight:600}
+.panel{background:var(--surface);border:1px solid var(--line);border-top:none;border-radius:0 0 8px 8px;padding:16px;display:grid;gap:18px}
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:8px;padding:32px 20px;display:grid;gap:12px;justify-items:start}
+.empty h2{font-size:18px;font-weight:600}
+
+.bhead{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
+.bhead input.adr{font-family:var(--f-display);font-size:21px;font-weight:600;border:1px solid transparent;border-radius:5px;padding:2px 6px;background:transparent;min-width:0;flex:1 1 320px}
+.bhead input.adr:hover{border-color:var(--line)}
+.bhead input.adr:focus{border-color:var(--accent);background:var(--sunken)}
+.bhead .sp{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.meta{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--muted);align-items:center}
+.meta b{color:var(--fg);font-family:var(--f-mono);font-weight:500}
+.meta input{border:1px solid var(--line);background:var(--sunken);border-radius:4px;padding:1px 5px;font-family:var(--f-mono);font-size:13px;width:110px}
+.pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;background:var(--sunken);border:1px solid var(--line)}
+.pill.warn{background:var(--warn-soft);border-color:var(--warn);color:var(--warn)}
+.pill.ok{color:var(--ok);border-color:var(--ok)}
+
+.cols{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:20px;align-items:start}
+@media (max-width:1200px){.cols{grid-template-columns:minmax(0,1fr)}}
+.blk{display:grid;gap:8px;min-width:0}
+.blk h3{font-size:15px;font-weight:600;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.blk h3 .sp{margin-left:auto;display:flex;gap:6px}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;text-align:left;background:var(--sunken);padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:4px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+td input,td select{border:1px solid transparent;background:transparent;border-radius:4px;padding:3px 5px;width:100%;min-width:0}
+td input:hover,td select:hover{border-color:var(--line)}
+td input:focus,td select:focus{border-color:var(--accent);background:var(--sunken)}
+td input.n{width:64px}
+td.t{white-space:nowrap}
+.kat{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.kat i{width:9px;height:9px;border-radius:2px;display:inline-block;background:var(--k)}
+tr.day td{background:var(--sunken);font-size:13px;padding:5px 8px}
+tr.day .dwrap{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+tr.day .dn{font-family:var(--f-mono);color:var(--muted)}
+tr.day input{width:auto;border:1px solid var(--line);background:var(--surface);font-family:var(--f-mono);font-size:13px;font-weight:600}
+tr.day.ov input{border-color:var(--accent)}
+tr.pause td{color:var(--muted);font-style:italic;font-size:13px}
+.hint{font-size:13px;color:var(--muted)}
+
+.strip{display:flex;height:16px;border-radius:4px;overflow:hidden;background:var(--sunken);border:1px solid var(--line)}
+.strip span{display:block;height:100%;background:var(--k);border-right:1px solid var(--surface)}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted)}
+body.drop{outline:3px dashed var(--accent);outline-offset:-6px}
+input[type=file]{display:none}
+.kpis{display:flex;flex-wrap:wrap;gap:8px 28px}
+.kpi{display:grid;gap:0}
+.kpi span{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.kpi b{font-family:var(--f-mono);font-size:18px;font-weight:500;font-variant-numeric:tabular-nums}
+tr.go{cursor:pointer} tr.go:hover td{background:var(--accent-soft)}
+tr.go.off td{color:var(--muted)}
+.gantt{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.gg{display:grid;min-width:min-content}
+.gh{position:relative;height:38px;border-bottom:1px solid var(--line);border-left:1px solid var(--line);background:var(--sunken);font-size:12px}
+.gh .dl{position:absolute;top:3px;left:6px;font-weight:600;white-space:nowrap}
+.gh .tk{position:absolute;bottom:2px;transform:translateX(-50%);font-family:var(--f-mono);color:var(--muted);font-size:10px}
+.gc{position:relative;height:30px;border-bottom:1px solid var(--line);border-left:1px solid var(--line)}
+.gc .lu{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(45deg,var(--sunken) 0 4px,transparent 4px 8px)}
+.gc .gl{position:absolute;top:0;bottom:0;width:1px;background:var(--line)}
+.gc .bar{position:absolute;top:7px;bottom:7px;background:var(--k);border-right:1px solid var(--surface);min-width:2px}
+.glab{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);padding:0 10px;height:30px;font-size:13px;background:var(--surface);position:sticky;left:0;z-index:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.glab:hover{color:var(--accent)}
+.glab.h{height:38px;background:var(--sunken);cursor:default;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.glab.h:hover{color:var(--muted)}
+.tab.ov{font-weight:600}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.acts{display:flex;gap:4px;white-space:nowrap}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:1px 9px;font-size:12px;cursor:pointer;color:var(--muted);white-space:nowrap}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.orgrow{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:14px}
+.orgrow input{border:1px solid var(--line);background:var(--sunken);border-radius:5px;padding:4px 7px;min-width:0;width:220px;max-width:100%}
+.half{display:inline-block;font-size:12px;font-weight:600;padding:0 7px;border-radius:4px;background:var(--sunken);border:1px solid var(--line)}
+dialog{border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--fg);padding:18px 20px;width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 32px)}
+dialog::backdrop{background:rgba(10,20,30,.5)}
+dialog form{display:grid;gap:10px}
+dialog h2{font-size:18px;font-weight:600}
+dialog label.f{display:grid;gap:3px;font-size:13px;color:var(--muted)}
+dialog input[type=text],dialog textarea{border:1px solid var(--line);background:var(--sunken);border-radius:6px;padding:6px 8px;color:var(--fg);font-size:14px;width:100%}
+dialog textarea{font-family:var(--f-mono);font-size:12.5px;line-height:1.45;resize:vertical;min-height:220px}
+.dact{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.dact a.btn{text-decoration:none;color:var(--fg)}
+#m_hint{margin:0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<header class="bar">
+  <div class="brand">
+    <img id="logoImg" alt="Terradata" hidden>
+    <span class="word" id="logoWord">Terradata</span>
+    <div><h1>Inspektionsplaner MFH</h1><span class="src" id="src"></span></div>
+  </div>
+  <div class="actions">
+    <label class="toggle" title="Beispieladressen ein- oder ausblenden"><input type="checkbox" id="samples"> Beispieldaten</label>
+    <button class="btn" id="btnNew" type="button">+ Adresse</button>
+    <button class="btn" id="btnImport" type="button">GeoJSON laden</button>
+    <button class="btn" id="btnGwr" type="button" title="Wohnungen aller Adressen aus dem GWR (geo.admin.ch) laden">GWR-Wohnungen</button>
+    <span class="sep"></span>
+    <button class="btn" id="btnLogo" type="button" title="Logo (SVG, PNG, JPG) für App und Excel laden">Logo …</button>
+    <button class="btn ghost sm" id="btnLogoDel" type="button" hidden aria-label="Logo entfernen">✕</button>
+    <select class="theme" id="theme" aria-label="Darstellung"><option value="light">Hell</option><option value="dark">Dunkel</option><option value="system">System</option></select>
+    <span class="sep"></span>
+    <button class="btn primary" id="btnXlsx" type="button">Excel exportieren</button>
+    <button class="btn" id="btnJson" type="button">JSON</button>
+  </div>
+  <div id="msg" role="status"></div>
+  <input type="file" id="file" accept=".geojson,.json,application/geo+json,application/json">
+  <input type="file" id="logoFile" accept="image/svg+xml,image/png,image/jpeg">
+</header>
+
+<div class="layout">
+  <aside class="params" id="params"></aside>
+  <main id="main"></main>
+  <aside class="mapcol" id="mapcol">
+    <div class="mapbar">
+      <h2>Karte</h2>
+      <select id="baseSel" aria-label="Hintergrundkarte"><option value="av">Amtliche Vermessung</option><option value="img">Luftbild</option><option value="lk">Landeskarte grau</option></select>
+      <button class="btn sm" id="btnAddMap" type="button" title="Auf ein Gebäude in der Karte klicken, um es mit GWR-Daten als Adresse hinzuzufügen">+ aus Karte</button>
+      <button class="btn sm" id="btnFit" type="button" title="Auf alle Objekte zoomen">Alles</button>
+      <button class="btn sm" id="btnMapJpg" type="button">JPG</button>
+    </div>
+    <div class="mapnote" id="mapnote" hidden></div>
+    <div id="map"></div>
+    <ol class="mlist" id="mlist"></ol>
+  </aside>
+</div>
+
+<dialog id="mailDlg" aria-labelledby="m_title">
+  <form method="dialog" id="mailForm">
+    <h2 id="m_title">Einladung</h2>
+    <label class="f">An<input type="text" id="m_to" autocomplete="off"></label>
+    <label class="f">Betreff<input type="text" id="m_subj" autocomplete="off"></label>
+    <label class="f">Text<textarea id="m_body" rows="14"></textarea></label>
+    <label class="chk"><input type="checkbox" id="m_att" checked><span>Kalendereinladungen (.ics) an den Outlook-Entwurf anhängen</span></label>
+    <div class="dact">
+      <button type="button" class="btn primary" id="m_eml">Outlook-Entwurf (.eml)</button>
+      <a class="btn" id="m_mailto" href="mailto:">Im Mailprogramm öffnen</a>
+      <button type="button" class="btn" id="m_copy">Text kopieren</button>
+      <button type="button" class="btn" id="m_ics">Nur .ics</button>
+      <button type="submit" class="btn ghost" value="close" style="margin-left:auto">Schliessen</button>
+    </div>
+    <p class="hint" id="m_hint"></p>
+  </form>
+</dialog>
+
+<script>
+"use strict";
+/* ============================================================
+ * Inspektionsplaner MFH — Terminierung Wohnungsinspektionen (Terradata AG)
+ * Input: GeoJSON aus dem Offert-Perimeter-Tool, Attribute unter
+ *   properties.attribute.gebaeude: "Gebäudeadresse", "EGID", "Anzahl Geschosse", "Anzahl Wohnungen"
+ * Wohnungen optional aus GWR (wstwk, whgnr, wbez, wazim) via EGID.
+ * Einsatztage: Serie aufeinanderfolgender Arbeitstage; jedes Datum einzeln übersteuerbar,
+ *   folgende Tage laufen ab dem übersteuerten Datum weiter.
+ * ============================================================ */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const lsGet=k=>{ try{ return localStorage.getItem(k); }catch(_){ return null; } };
+const lsSet=(k,v)=>{ try{ v==null?localStorage.removeItem(k):localStorage.setItem(k,v); }catch(_){} };
+
+const DEFAULTS = {
+  startDate: nextWorkdayFrom(todayISO(), [1,2,3,4,5]),
+  dayStart: "08:00", dayEnd: "17:00",
+  lunch: true, lunchStart: "12:00", lunchEnd: "13:00",
+  gap: 5,                 // Wechselzeit zwischen Terminen [min]
+  bigFrom: 3,             // ab dieser Zimmerzahl = grosse Wohnung
+  durBig: 30, durSmall: 15,
+  durCommon: 30,          // Allgemeine Räume pro Adresse
+  stairPerFloor: 5,       // Treppenhaus pro Geschoss
+  stairPos: "end",        // start | end
+  order: "up",            // up | down
+  workdays: [1,2,3,4,5],
+  sequential: true,       // Adressen fortlaufend planen
+  newDayPerAddress: false,
+  travel: 15              // Wechsel zwischen Adressen [min]
+};
+const WD = ["So","Mo","Di","Mi","Do","Fr","Sa"];
+const KAT = {
+  gross:{label:"Wohnung gross", v:"--k-gross"}, klein:{label:"Wohnung klein", v:"--k-klein"},
+  allg:{label:"Allgemeine Räume", v:"--k-allg"}, tr:{label:"Treppenhaus", v:"--k-tr"}
+};
+const COMMON_DEFAULT = "Allgemeine Räume UG (Waschküche, Technik, Velo)";
+
+/* ---------- Beispieldaten (fiktiv) ---------- */
+let SEQ=0; const newId=()=>"b"+(++SEQ);
+function u(floor,nr,lage,zimmer){ return {floor, nr, lage, zimmer, dur:null}; }
+function sampleBuildings(){ return [
+  { id:newId(), adresse:"Beispielweg 4, 8304 Wallisellen", egid:"", geschosse:4, include:true, gwr:"Beispiel",
+    common:[{name:COMMON_DEFAULT, dur:null}],
+    units:[u(0,"0.1","links",3.5),u(0,"0.2","rechts",2.5),u(1,"1.1","links",4.5),u(1,"1.2","rechts",2.5),u(2,"2.1","links",4.5),u(2,"2.2","rechts",2.5),u(3,"3.1","Attika",5.5)]},
+  { id:newId(), adresse:"Beispielweg 6, 8304 Wallisellen", egid:"", geschosse:3, include:true, gwr:"Beispiel",
+    common:[{name:COMMON_DEFAULT, dur:null}],
+    units:[u(0,"0.1","",3.5),u(1,"1.1","",3.5),u(1,"1.2","",1.5),u(2,"2.1","",4.5)]}
+];}
+function blankBuilding(){ return { id:newId(), adresse:"Neue Adresse", egid:"", geschosse:1, include:true, gwr:"manuell", common:[{name:COMMON_DEFAULT, dur:null}], units:[] }; }
+
+const showSamples = lsGet("ip_samples")!=="0";
+let S = { params: structuredClone(DEFAULTS), buildings: showSamples?sampleBuildings():[], active:-1, dayDates:{}, source:"", logo:null, confirmDel:null, features:[], ganttMode:"kalender", fitPending:true, addMode:false,
+  team:[], org:{name:"",email:""}, assign:{}, planId:Date.now().toString(36), planT0:Date.now(), compose:null };
+try{ const l=lsGet("ip_logo"); if(l) S.logo=JSON.parse(l); }catch(_){}
+try{ const t=lsGet("ip_team"); if(t) S.team=JSON.parse(t)||[]; const o=lsGet("ip_org"); if(o) S.org=JSON.parse(o)||S.org; }catch(_){}
+
+/* ---------- Zeit / Datum ---------- */
+function todayISO(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function toMin(hhmm){ const [h,m]=String(hhmm||"0:0").split(":").map(Number); return (h||0)*60+(m||0); }
+function hm(min){ return String(Math.floor(min/60)).padStart(2,"0")+":"+String(min%60).padStart(2,"0"); }
+function dObj(iso){ return new Date(iso+"T00:00:00Z"); }
+function addDays(iso,n){ const d=dObj(iso); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
+function wday(iso){ return dObj(iso).getUTCDay(); }
+function nextWorkdayFrom(iso, wds){ let d=iso; for(let i=0;i<14;i++){ if(wds.includes(wday(d))) return d; d=addDays(d,1);} return iso; }
+function chDate(iso){ const [y,m,d]=iso.split("-"); return d+"."+m+"."+y; }
+function floorLabel(f){ f=Number(f); return f===0?"EG":f>0?f+". OG":(-f)+". UG"; }
+function durText(m){ const h=Math.floor(m/60), r=m%60; return h? h+" h "+String(r).padStart(2,"0")+" min" : r+" min"; }
+function shortAdr(a){ return String(a).split(",")[0]; }
+
+/* ---------- Einsatztage ---------- */
+function wdsOf(p){ return p.workdays.length?p.workdays:[1,2,3,4,5]; }
+function seriesKey(b){ return S.params.sequential ? "all" : b.id; }
+/* Datum von Einsatztag idx: Übersteuerung, sonst nächster Arbeitstag nach dem Vortag */
+function dayDate(key, idx){
+  const p=S.params, wds=wdsOf(p); let d=null;
+  for(let i=0;i<=idx;i++){
+    const ov=S.dayDates[key+":"+i];
+    d = ov || (i===0 ? nextWorkdayFrom(p.startDate||todayISO(),wds) : nextWorkdayFrom(addDays(d,1),wds));
+  }
+  return d;
+}
+
+/* ---------- Ablauf je Adresse ---------- */
+function unitKat(un,p){ return Number(un.zimmer) >= p.bigFrom ? "gross" : "klein"; }
+function unitDur(un,p){ return un.dur!=null && un.dur!=="" ? Number(un.dur) : (unitKat(un,p)==="gross"?p.durBig:p.durSmall); }
+function stairDur(b,p){ return Math.max(0,Number(b.geschosse)||0)*p.stairPerFloor; }
+
+function itemsFor(b,p){
+  const items=[];
+  for(const c of b.common) items.push({kat:"allg", floor:"UG/allg.", nr:"", lage:"", zimmer:"", objekt:c.name, dur: c.dur!=null&&c.dur!==""?Number(c.dur):p.durCommon});
+  const units=[...b.units].sort((a,c)=> (a.floor-c.floor) || String(a.nr).localeCompare(String(c.nr),"de",{numeric:true}));
+  if(p.order==="down") units.reverse();
+  for(const un of units){
+    const k=unitKat(un,p);
+    items.push({kat:k, floor:floorLabel(un.floor), nr:un.nr, lage:un.lage, zimmer:un.zimmer, objekt:KAT[k].label+" inkl. Keller", dur:unitDur(un,p)});
+  }
+  const st={kat:"tr", floor:(b.geschosse||0)+" Geschosse", nr:"", lage:"", zimmer:"", objekt:"Treppenhaus", dur:stairDur(b,p)};
+  if(st.dur>0){ if(p.stairPos==="start") items.unshift(st); else items.push(st); }
+  return items.filter(i=>i.dur>0);
+}
+
+/* Platzierung: kein Termin über Mittag oder Tagesende; Termine, die länger als ein
+ * ganzer Block sind, beginnen am Blockanfang und laufen über. */
+function schedule(){
+  const p=S.params, ds=toMin(p.dayStart), de=toMin(p.dayEnd), ls=toMin(p.lunchStart), le=toMin(p.lunchEnd);
+  let day=0, m=ds, first=true;
+  const out=[];
+  for(const b of S.buildings){
+    if(!b.include){ out.push({b, rows:[]}); continue; }
+    if(!p.sequential){ day=0; m=ds; }
+    else if(!first){ if(p.newDayPerAddress){ day++; m=ds; } else m+=Math.max(0,p.travel-p.gap); }
+    first=false;
+    const key=seriesKey(b), rows=[];
+    for(const it of itemsFor(b,p)){
+      let guard=0;
+      for(;;){
+        if(m<ds) m=ds;
+        let blockStart=ds;
+        if(p.lunch && le>ls){
+          if(m>=ls && m<le) m=le;
+          if(m>=le) blockStart=le;
+          else if(m+it.dur>ls && m>ds){ m=le; blockStart=le; }   // passt nicht mehr vor Mittag
+        }
+        if(m+it.dur>de && m>blockStart && guard<30){ day++; m=ds; guard++; continue; }
+        break;
+      }
+      rows.push({...it, key, dayIdx:day, start:m, end:m+it.dur});
+      m+=it.dur+p.gap;
+    }
+    out.push({b, rows});
+  }
+  for(const e of out) for(const r of e.rows) r.date=dayDate(r.key,r.dayIdx);
+  return out;
+}
+/* Alle Einsatztage einer Serie, mit Adressen */
+function daysOf(sched, key){
+  const map=new Map();
+  for(const e of sched) for(const r of e.rows){ if(r.key!==key) continue;
+    if(!map.has(r.dayIdx)) map.set(r.dayIdx,{idx:r.dayIdx,date:r.date,adr:new Set()});
+    map.get(r.dayIdx).adr.add(shortAdr(e.b.adresse)); }
+  return [...map.values()].sort((a,b)=>a.idx-b.idx);
+}
+
+/* ---------- GeoJSON-Import ---------- */
+/* Attribute flach machen: das Perimeter-Tool gruppiert sie in attribute.gebaeude / attribute.grundstueck */
+function flatAttrs(o,acc={}){
+  for(const [k,v] of Object.entries(o||{})){
+    if(v && typeof v==="object" && !Array.isArray(v)) flatAttrs(v,acc);
+    else if(!(k in acc) || acc[k]==="" || acc[k]==null) acc[k]=v;
+  }
+  return acc;
+}
+function attrOf(a,keys){ for(const k of keys){ if(a[k]!=null && String(a[k]).trim()!=="") return String(a[k]).trim(); } return ""; }
+function importGeoJSON(gj){
+  const feats=(gj&&gj.features)||[];
+  const keep=S.buildings.filter(b=>b.gwr!=="Beispiel");          // manuell erfasste Adressen bleiben
+  const byKey=new Map(keep.map(b=>[b.egid||b.adresse,b]));
+  const added=[]; let skipped=0, dup=0;
+  for(const ft of feats){
+    const p0=ft.properties||{};
+    const pr=flatAttrs(p0.attribute||p0.attrs||{}, {});
+    const adr=attrOf(pr,["Gebäudeadresse","Adresse","adresse"]);
+    if(!adr){ skipped++; continue; }
+    const egid=attrOf(pr,["EGID","egid"]);
+    const key=egid||adr;
+    const ex=byKey.get(key);
+    if(ex){ dup++; if(ft.geometry && added.includes(ex)){ ex.geoms.push(ft.geometry); ex.pt=centerOf(ex.geoms); } continue; }
+    const geschosse=parseInt(attrOf(pr,["Anzahl Geschosse","gastw"]))||0;
+    const nWhg=parseInt(attrOf(pr,["Anzahl Wohnungen","ganzwhg"]))||0;
+    const geoms=ft.geometry?[ft.geometry]:[];
+    const b={id:newId(), adresse:adr, egid, geschosse, include:nWhg>0, gwr:"generiert",
+      common:[{name:COMMON_DEFAULT, dur:null}], units:generateUnits(geschosse,nWhg), geoms, pt:centerOf(geoms)};
+    byKey.set(key,b); added.push(b);
+  }
+  if(!added.length && !dup) throw new Error("Keine Objekte mit Gebäudeadresse gefunden. Im Perimeter-Tool Gebäude-Objekte (mit GWR-Attributen) erfassen und erneut exportieren.");
+  const seenG=new Set(S.features.map(f=>JSON.stringify(f.geometry)));
+  for(const f of feats){ if(!f.geometry) continue; const k=JSON.stringify(f.geometry); if(!seenG.has(k)){ seenG.add(k); S.features.push(f); } }
+  S.buildings=[...keep,...added]; S.active=-1; S.fitPending=true;
+  return {n:added.length, skipped, dup};
+}
+/* Koordinaten (lng,lat) einer Geometrie flach auflisten */
+function coordsOf(g){
+  if(!g) return [];
+  const t=g.type, c=g.coordinates;
+  if(t==="Point") return [c];
+  if(t==="LineString"||t==="MultiPoint") return c;
+  if(t==="Polygon"||t==="MultiLineString") return c.flat();
+  if(t==="MultiPolygon") return c.flat(2);
+  if(t==="GeometryCollection") return g.geometries.flatMap(coordsOf);
+  return [];
+}
+function centerOf(geoms){
+  const pts=(geoms||[]).flatMap(coordsOf); if(!pts.length) return null;
+  let x=0,y=0; for(const [a,b] of pts){ x+=a; y+=b; } return [y/pts.length, x/pts.length];   // [lat,lng]
+}
+/* LV95 -> WGS84 (Näherungsformel swisstopo, ~1 m) */
+function lv95ToWgs(E,N){
+  const y=(E-2600000)/1e6, x=(N-1200000)/1e6;
+  const lng=2.6779094+4.728982*y+0.791484*y*x+0.1306*y*x*x-0.0436*y*y*y;
+  const lat=16.9023892+3.238272*x-0.270978*y*y-0.002528*x*x-0.0447*y*y*x-0.0140*x*x*x;
+  return [lat*100/36, lng*100/36];
+}
+/* Platzhalter, bis GWR-Wohnungen geladen sind: Wohnungen gleichmässig ab EG verteilt */
+function generateUnits(geschosse,n){
+  const fl=Math.max(1,geschosse||1), res=[];
+  for(let i=0;i<n;i++){ const f=Math.floor(i*fl/Math.max(n,1)); const k=res.filter(x=>x.floor===f).length+1; res.push(u(f, f+"."+k, "", 3.5)); }
+  return res;
+}
+
+/* ---------- GWR (geo.admin.ch) ---------- */
+function wstwkToFloor(c){ c=Number(c); if(c===3100) return 0; if(c>3100&&c<3200) return c-3100; if(c>3400&&c<3500) return -(c-3400); return 0; }
+const GWR_API="https://api3.geo.admin.ch/rest/services/ech/MapServer/";
+const GWR_LAYER="ch.bfs.gebaeude_wohnungs_register";
+async function getJSON(url){ const r=await fetch(url); if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); }
+/* GWR-Datensatz holen: 1) find per EGID, 2) Feature per featureId, 3) find per Adresse + PLZ */
+async function fetchGWR(b){
+  const egid=String(b.egid||"").trim();
+  if(/^\d+$/.test(egid)){
+    try{
+      const j=await getJSON(GWR_API+"find?layer="+GWR_LAYER+"&searchField=egid&searchText="+egid+"&contains=false&returnGeometry=false");
+      const hit=(j.results||[]).find(r=>String(r.attributes&&r.attributes.egid)===egid);
+      if(hit) return hit.attributes;
+    }catch(e){ if(e instanceof TypeError) throw e; }
+    try{
+      const j=await getJSON(GWR_API+GWR_LAYER+"/"+egid+"_0?returnGeometry=false");
+      const f=j.feature||j; const a=f.attributes||f.properties;
+      if(a) return a;
+    }catch(e){ if(e instanceof TypeError) throw e; }
+  }
+  const m=String(b.adresse).match(/^(.+?),\s*(\d{4})\b/);
+  if(m){
+    const j=await getJSON(GWR_API+"find?layer="+GWR_LAYER+"&searchField=strname_deinr&searchText="+encodeURIComponent(m[1].trim())+"&contains=false&returnGeometry=false");
+    const hit=(j.results||[]).find(r=>String(r.attributes&&r.attributes.dplz4)===m[2]);
+    if(hit){ if(!b.egid) b.egid=String(hit.attributes.egid); return hit.attributes; }
+  }
+  throw new Error("nicht gefunden");
+}
+async function loadGWR(b){ return applyGWR(b, await fetchGWR(b)); }
+function gwrAddress(a){
+  const str=a.strname_deinr || [Array.isArray(a.strname)?a.strname[0]:a.strname, a.deinr].filter(Boolean).join(" ");
+  return [str, [a.dplz4,a.dplzname].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+}
+function applyGWR(b,a){
+  if(!b.pt && a.gkode && a.gkodn) b.pt=lv95ToWgs(Number(a.gkode),Number(a.gkodn));
+  const ew=a.ewid||[], units=[];
+  ew.forEach((_,i)=>{
+    if(a.wabbj && a.wabbj[i]) return;
+    units.push({floor:wstwkToFloor(a.wstwk&&a.wstwk[i]), nr:(a.whgnr&&a.whgnr[i])||("EWID "+ew[i]), lage:(a.wbez&&a.wbez[i])||"",
+      zimmer:(a.wazim&&a.wazim[i])??"", flaeche:(a.warea&&a.warea[i])??"", dur:null});
+  });
+  if(a.gastw) b.geschosse=a.gastw;
+  if(units.length){ b.units=units; b.gwr="GWR"; b.include=true; } else b.gwr="GWR ohne Wohnungen";
+  return units.length;
+}
+const BLOCKED_MSG="GWR-Abruf blockiert: In der Artifact-Vorschau sind externe Abfragen gesperrt. inspektionsplaner.html lokal im Browser öffnen oder Wohnungen manuell erfassen.";
+const isBlocked=e=>e instanceof TypeError;   // CSP/Netzwerk: fetch wirft TypeError
+async function loadAllGWR(){
+  const todo=S.buildings.filter(b=>b.gwr!=="Beispiel");
+  if(!todo.length){ say("Keine Adressen für den GWR-Abruf vorhanden.","err"); return; }
+  say("Lade Wohnungen aus dem GWR …");
+  let ok=0, blocked=0; const missing=[];
+  await Promise.all(todo.map(b=>loadGWR(b).then(()=>ok++).catch(e=>{ if(isBlocked(e)) blocked++; else missing.push(shortAdr(b.adresse)); })));
+  render();
+  if(blocked===todo.length) say(BLOCKED_MSG,"err");
+  else say(ok+" Adresse(n) aus dem GWR übernommen"+(missing.length?"; nicht gefunden: "+missing.join(", "):"")+".", missing.length?"err":"ok");
+}
+
+/* ---------- Logo ---------- */
+/* Logo wird für Excel in ein PNG (Höhe 160 px) gewandelt; ExcelJS kann kein SVG einbetten. */
+function loadLogo(file){
+  const rd=new FileReader();
+  rd.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      const w0=img.naturalWidth||600, h0=img.naturalHeight||200, h=160, w=Math.round(w0*h/h0);
+      const c=document.createElement("canvas"); c.width=w; c.height=h;
+      c.getContext("2d").drawImage(img,0,0,w,h);
+      const png=c.toDataURL("image/png");
+      S.logo={src:rd.result, png:png.split(",")[1], w, h};
+      lsSet("ip_logo",JSON.stringify(S.logo));
+      renderLogo(); say("Logo übernommen, erscheint in der App und im Excel-Export.","ok");
+    };
+    img.onerror=()=>say("Logo konnte nicht gelesen werden. SVG, PNG oder JPG verwenden.","err");
+    img.src=rd.result;
+  };
+  rd.readAsDataURL(file);
+}
+function renderLogo(){
+  const has=!!(S.logo&&S.logo.src);
+  $("logoImg").hidden=!has; if(has) $("logoImg").src=S.logo.src;
+  $("logoWord").hidden=has; $("btnLogoDel").hidden=!has;
+}
+
+/* ---------- Halbtags-Einsätze, Team, ICS, Mail ---------- */
+const HALF={VM:"Vormittag",NM:"Nachmittag"};
+function halfOf(r){ const p=S.params, split=p.lunch?toMin(p.lunchStart):720; return r.start<split?"VM":"NM"; }
+/* Halbtage: alle Termine eines Datums vor bzw. nach der Mittagspause */
+function blocksOf(sched){
+  const map=new Map();
+  for(const r of allRows(sched)){
+    const hf=halfOf(r), key=(S.params.sequential?"all:"+r.dayIdx:r.date)+"|"+hf;
+    if(!map.has(key)) map.set(key,{key,date:r.date,half:hf,dayIdx:r.dayIdx,rows:[]});
+    map.get(key).rows.push(r);
+  }
+  const out=[...map.values()].sort((a,b)=>a.date.localeCompare(b.date)||(a.half==="VM"?0:1)-(b.half==="VM"?0:1));
+  for(const bk of out){ bk.start=Math.min(...bk.rows.map(r=>r.start)); bk.end=Math.max(...bk.rows.map(r=>r.end));
+    bk.buildings=[...new Set(bk.rows.map(r=>r.b))]; bk.adr=bk.buildings.map(b=>b.adresse); }
+  return out;
+}
+function assigned(bk){ return S.assign[bk.key] ?? S.team.filter(p=>p.std).map(p=>p.id); }
+function personsOf(bk){ const ids=assigned(bk); return S.team.filter(p=>ids.includes(p.id)); }
+function blocksOfPerson(bks,pid){ return bks.filter(bk=>assigned(bk).includes(pid)); }
+function toggleAssign(key,pid){ const bk=blocksOf(SCHED).find(x=>x.key===key); const cur=new Set(bk?assigned(bk):[]); cur.has(pid)?cur.delete(pid):cur.add(pid); S.assign[key]=[...cur]; }
+function saveTeam(){ lsSet("ip_team",JSON.stringify(S.team)); lsSet("ip_org",JSON.stringify(S.org)); }
+const validMail=s=>/^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/.test(String(s||"").trim());
+function mapLink(b){ return "https://map.geo.admin.ch/?swisssearch="+encodeURIComponent(b.adresse); }
+function rowLabel(r){ return [r.floor, r.nr, r.lage, r.kat==="gross"||r.kat==="klein"? (r.zimmer!==""?r.zimmer+" Zi.":"Wohnung") : r.objekt].filter(x=>x!==""&&x!=null).join(" · "); }
+function blockHead(bk){ return `${WD[wday(bk.date)]} ${chDate(bk.date)}, ${HALF[bk.half]}, ${hm(bk.start)}–${hm(bk.end)}`; }
+function blockText(bk, withTeam){
+  const L=[blockHead(bk)];
+  for(const b of bk.buildings){
+    L.push("  "+b.adresse, "  Karte: "+mapLink(b));
+    for(const r of bk.rows.filter(r=>r.b===b)) L.push(`    ${hm(r.start)}–${hm(r.end)}  ${rowLabel(r)}`);
+  }
+  if(withTeam) L.push("  Team: "+(personsOf(bk).map(p=>p.name||p.email).join(", ")||"noch niemand eingeteilt"));
+  return L.join("\n");
+}
+
+/* iCalendar (RFC 5545): Zeitzone Europe/Zurich, Zeilen gefaltet auf 75 Bytes, CRLF */
+const ICS_TZ=["BEGIN:VTIMEZONE","TZID:Europe/Zurich","BEGIN:DAYLIGHT","TZOFFSETFROM:+0100","TZOFFSETTO:+0200","TZNAME:CEST","DTSTART:19700329T020000","RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU","END:DAYLIGHT",
+  "BEGIN:STANDARD","TZOFFSETFROM:+0200","TZOFFSETTO:+0100","TZNAME:CET","DTSTART:19701025T030000","RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU","END:STANDARD","END:VTIMEZONE"];
+const icsEsc=s=>String(s??"").replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\r?\n/g,"\\n");
+const icsCN=s=>String(s||"").replace(/["\r\n]/g,"").trim();
+function icsFold(line){
+  const enc=new TextEncoder(); if(enc.encode(line).length<=75) return line;
+  const out=[]; let cur="", len=0;
+  for(const ch of line){ const l=enc.encode(ch).length; if(len+l>75){ out.push(cur); cur=" "; len=1; } cur+=ch; len+=l; }
+  out.push(cur); return out.join("\r\n");
+}
+const icsLocal=(iso,min)=>iso.replace(/-/g,"")+"T"+hm(min).replace(":","")+"00";
+function icsMethod(bks){ return validMail(S.org.email) && bks.some(bk=>personsOf(bk).some(p=>validMail(p.email))) ? "REQUEST" : "PUBLISH"; }
+function vevent(bk, method){
+  const stamp=new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d+/,"");
+  const team=personsOf(bk);
+  const desc=blockText(bk,true)+"\n\nErstellt mit dem Inspektionsplaner MFH (Terradata AG).";
+  const L=["BEGIN:VEVENT",
+    "UID:insp-"+S.planId+"-"+bk.key.replace(/[^\w]/g,"-")+"@inspektionsplaner.terradata.ch",
+    "SEQUENCE:"+Math.floor((Date.now()-S.planT0)/60000),
+    "DTSTAMP:"+stamp,
+    "DTSTART;TZID=Europe/Zurich:"+icsLocal(bk.date,bk.start),
+    "DTEND;TZID=Europe/Zurich:"+icsLocal(bk.date,bk.end),
+    "SUMMARY:"+icsEsc(`Inspektion ${HALF[bk.half]} · ${bk.adr.map(shortAdr).join(", ")}`),
+    "LOCATION:"+icsEsc(bk.adr.join(" / ")),
+    "DESCRIPTION:"+icsEsc(desc),
+    "CATEGORIES:Inspektion","STATUS:CONFIRMED","TRANSP:OPAQUE"];
+  const pt=bk.buildings.find(b=>b.pt); if(pt) L.push("GEO:"+pt.pt[0].toFixed(6)+";"+pt.pt[1].toFixed(6));
+  if(method==="REQUEST"){
+    L.push(`ORGANIZER;CN="${icsCN(S.org.name||S.org.email)}":mailto:${S.org.email.trim()}`);
+    for(const p of team) if(validMail(p.email)) L.push(`ATTENDEE;CN="${icsCN(p.name||p.email)}";ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:${p.email.trim()}`);
+  }
+  L.push("BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:"+icsEsc("Inspektion "+HALF[bk.half]),"TRIGGER:-PT30M","END:VALARM","END:VEVENT");
+  return L;
+}
+function icsCal(bks, method){
+  return ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Terradata AG//Inspektionsplaner MFH//DE","CALSCALE:GREGORIAN","METHOD:"+method,"X-WR-TIMEZONE:Europe/Zurich",
+    ...ICS_TZ, ...bks.flatMap(bk=>vevent(bk,method)), "END:VCALENDAR"].map(icsFold).join("\r\n")+"\r\n";
+}
+const icsName=bk=>"Inspektion_"+bk.date+"_"+bk.half+".ics";
+function saveBlockIcs(bk){ saveFile(icsName(bk), icsCal([bk], icsMethod([bk]))); }
+function saveIcsMany(bks,name){ if(!bks.length){ say("Keine Halbtage vorhanden.","err"); return; } saveFile(name, icsCal(bks,"PUBLISH")); }
+
+/* E-Mail-Entwurf (.eml, X-Unsent: Outlook öffnet ihn als sendebereiten Entwurf) */
+function b64utf8(s){ const by=new TextEncoder().encode(s); let bin=""; for(let i=0;i<by.length;i+=8192) bin+=String.fromCharCode(...by.subarray(i,i+8192)); return btoa(bin); }
+const wrap76=s=>s.replace(/.{76}/g,"$&\r\n");
+const hdrEnc=s=>/^[\x20-\x7e]*$/.test(s)? s : "=?UTF-8?B?"+b64utf8(s)+"?=";
+function addrList(raw){
+  return String(raw||"").split(/[,;\s]+/).filter(validMail).map(m=>{ const p=S.team.find(x=>x.email.trim().toLowerCase()===m.toLowerCase());
+    return p&&p.name? `${hdrEnc(p.name.replace(/["<>]/g,""))} <${m}>` : m; });
+}
+function emlDraft(to, subject, body, atts){
+  const B="----=_insp_"+Math.random().toString(36).slice(2);
+  const L=["X-Unsent: 1","To: "+to.join(", "),"Subject: "+hdrEnc(subject),"MIME-Version: 1.0"];
+  if(!atts.length){ L.push("Content-Type: text/plain; charset=UTF-8","Content-Transfer-Encoding: base64","",wrap76(b64utf8(body))); return L.join("\r\n")+"\r\n"; }
+  L.push(`Content-Type: multipart/mixed; boundary="${B}"`,"","--"+B,"Content-Type: text/plain; charset=UTF-8","Content-Transfer-Encoding: base64","",wrap76(b64utf8(body)));
+  for(const a of atts) L.push("--"+B,`Content-Type: text/calendar; charset=UTF-8; method=${a.method}; name="${a.name}"`,`Content-Disposition: attachment; filename="${a.name}"`,"Content-Transfer-Encoding: base64","",wrap76(b64utf8(a.content)));
+  L.push("--"+B+"--");
+  return L.join("\r\n")+"\r\n";
+}
+
+/* Einladungsdialog */
+function openCompose(persons, bks, title){
+  if(!bks.length){ say("Keine Halbtage für diese Einladung.","err"); return; }
+  const single=persons.length===1, first=single?String(persons[0].name||"").trim().split(/\s+/)[0]:"";
+  const span=bks.length===1? `${WD[wday(bks[0].date)]} ${chDate(bks[0].date)} ${HALF[bks[0].half]}` : `${chDate(bks[0].date)} – ${chDate(bks[bks.length-1].date)}`;
+  const adr=[...new Set(bks.flatMap(bk=>bk.adr.map(shortAdr)))];
+  const body=[`Hallo ${first||"zusammen"}`,"",
+    single? (bks.length===1?"Für die Wohnungsinspektion bist du an folgendem Halbtag eingeteilt:":"Für die Wohnungsinspektionen bist du an folgenden Halbtagen eingeteilt:")
+          : "Für die Wohnungsinspektionen sind folgende Halbtage geplant:", "",
+    ...bks.map(bk=>blockText(bk,!single)+"\n"),
+    "Bei Fragen oder Verhinderung bitte kurz melden.","","Freundliche Grüsse",S.org.name||""].join("\n").trimEnd()+"\n";
+  S.compose={persons:persons.map(p=>p.id), bks};
+  $("m_title").textContent=title;
+  $("m_to").value=persons.map(p=>p.email.trim()).filter(Boolean).join(", ");
+  $("m_subj").value=`Einladung Wohnungsinspektion ${span} · ${adr.slice(0,3).join(", ")}${adr.length>3?" u. a.":""}`;
+  $("m_body").value=body;
+  composeHint(); updateMailto();
+  try{ $("mailDlg").showModal(); }catch(_){ $("mailDlg").setAttribute("open",""); }
+}
+function composeHint(){
+  const c=S.compose; if(!c) return;
+  const miss=S.team.filter(p=>c.persons.includes(p.id)&&!validMail(p.email)).map(p=>p.name||"(ohne Name)");
+  const m=icsMethod(c.bks), msgs=[];
+  if(miss.length) msgs.push("Ohne gültige E-Mail: "+miss.join(", ")+".");
+  if(m==="PUBLISH") msgs.push("Ohne Organisator-E-Mail werden einfache Kalendereinträge statt Einladungen mit Zu-/Absage erzeugt.");
+  msgs.push("«Im Mailprogramm öffnen» kann keine Anhänge mitgeben; sehr lange Texte werden von manchen Programmen gekürzt.");
+  $("m_hint").textContent=msgs.join(" ");
+}
+function updateMailto(){
+  const to=String($("m_to").value).split(/[,;\s]+/).filter(validMail).join(",");
+  $("m_mailto").href="mailto:"+to+"?subject="+encodeURIComponent($("m_subj").value)+"&body="+encodeURIComponent($("m_body").value);
+}
+function composeEml(){
+  const c=S.compose; if(!c) return;
+  const to=addrList($("m_to").value);
+  if(!to.length){ $("m_hint").textContent="Bitte mindestens eine gültige E-Mail-Adresse bei «An» eintragen."; return; }
+  const atts=$("m_att").checked? c.bks.map(bk=>{ const m=icsMethod([bk]); return {name:icsName(bk), method:m, content:icsCal([bk],m)}; }) : [];
+  const who=c.persons.length===1? safe((S.team.find(p=>p.id===c.persons[0])||{}).name||"Person") : "Team";
+  saveFile("Einladung_"+who+"_"+c.bks[0].date+".eml", emlDraft(to,$("m_subj").value,$("m_body").value,atts));
+}
+
+function einsaetzeHTML(sched){
+  const bks=blocksOf(sched), team=S.team, p=S.params;
+  const teamRows=team.map(pp=>{ const n=blocksOfPerson(bks,pp.id).length;
+    return `<tr>
+      <td><input data-team="${pp.id}" data-f="name" value="${esc(pp.name)}" placeholder="Vorname Name" aria-label="Name"></td>
+      <td><input data-team="${pp.id}" data-f="email" type="email" value="${esc(pp.email)}" placeholder="vorname.name@terradata.ch" aria-label="E-Mail"></td>
+      <td><label class="chk" title="Wird allen Halbtagen ohne eigene Zuteilung zugeteilt"><input type="checkbox" data-team="${pp.id}" data-f="std" ${pp.std?"checked":""}><span>alle</span></label></td>
+      <td class="t">${n}</td>
+      <td><span class="acts"><button class="btn sm" type="button" data-invite="${pp.id}" ${n?"":"disabled"}>Einladen</button><button class="btn sm" type="button" data-pics="${pp.id}" ${n?"":"disabled"} title="Alle Halbtage dieser Person als Kalenderdatei">.ics</button><button class="btn ghost sm" type="button" data-tdel="${pp.id}" aria-label="Person entfernen">✕</button></span></td></tr>`; }).join("");
+  const blockRows=bks.map(bk=>{ const ids=assigned(bk);
+    return `<tr>
+      <td class="t">${p.sequential?"Tag "+(bk.dayIdx+1):""}</td>
+      <td class="t">${WD[wday(bk.date)]} ${chDate(bk.date)}</td>
+      <td><span class="half">${bk.half}</span></td>
+      <td class="t">${hm(bk.start)}–${hm(bk.end)}</td>
+      <td>${bk.adr.map(a=>esc(shortAdr(a))).join("<br>")}</td>
+      <td class="t">${bk.rows.length}</td>
+      <td><div class="chips">${team.length? team.map(pp=>`<button type="button" class="chip" data-assign="${esc(bk.key)}" data-pid="${pp.id}" aria-pressed="${ids.includes(pp.id)}">${esc(pp.name||pp.email||"Person")}</button>`).join("") : '<span class="hint">–</span>'}</div></td>
+      <td><span class="acts"><button class="btn sm" type="button" data-bics="${esc(bk.key)}">.ics</button><button class="btn sm" type="button" data-bmail="${esc(bk.key)}" ${ids.length?"":"disabled"}>Einladen</button></span></td></tr>`; }).join("");
+  return `<div class="blk"><h3>Halbtags-Einsätze und Team <span class="hint">${bks.length} Halbtage</span>
+      <span class="sp"><button class="btn sm" type="button" id="icsAll" ${bks.length?"":"disabled"}>Alle als .ics</button><button class="btn primary sm" type="button" id="inviteAll" ${bks.length&&team.length?"":"disabled"}>Alle einladen</button></span></h3>
+    <div class="orgrow"><span>Organisator</span>
+      <input id="o_name" value="${esc(S.org.name)}" placeholder="Name" aria-label="Name Organisator">
+      <input id="o_email" type="email" value="${esc(S.org.email)}" placeholder="E-Mail Organisator" aria-label="E-Mail Organisator">
+      <span class="hint">Mit E-Mail werden echte Einladungen (Zu-/Absage) erzeugt.</span></div>
+    <div class="scroll"><table>
+      <thead><tr><th>Person</th><th>E-Mail</th><th>Standard</th><th>Halbtage</th><th><button class="btn sm" type="button" id="addPerson">+ Person</button></th></tr></thead>
+      <tbody>${teamRows||'<tr><td colspan="5" class="hint">Noch keine Personen. Mit «+ Person» das Inspektionsteam erfassen.</td></tr>'}</tbody></table></div>
+    <div class="scroll"><table>
+      <thead><tr><th>Einsatz</th><th>Datum</th><th>Halbtag</th><th>Zeit</th><th>Adressen</th><th>Termine</th><th>Team</th><th></th></tr></thead>
+      <tbody>${blockRows||'<tr><td colspan="8" class="hint">Keine Termine geplant.</td></tr>'}</tbody></table></div>
+    <p class="hint">VM = vor, NM = nach der Mittagspause. Team-Chips anklicken, um Personen einem Halbtag zuzuteilen oder zu entfernen.</p></div>`;
+}
+
+/* ---------- Karte ---------- */
+const PAL=["#1d5d8c","#c0632b","#2c7a4b","#7a4ea3","#9a7d10","#b3362f","#2f8f9a","#5f6f7f"];
+/* Reihenfolge der Adressen (nach erstem Termin) und Farbe nach Einsatztag */
+function mapOrder(sched){
+  const dates=ganttDates(sched);
+  const list=sched.filter(e=>e.b.include&&e.rows.length).sort((a,c)=>a.rows[0].date.localeCompare(c.rows[0].date)||a.rows[0].start-c.rows[0].start);
+  const info=new Map();
+  list.forEach((e,i)=>{ const d=e.rows[0].date; info.set(e.b.id,{n:i+1, color:PAL[dates.indexOf(d)%PAL.length], date:d, day:e.rows[0].dayIdx+1}); });
+  return info;
+}
+function stilOf(f){
+  const st=(f.properties&&f.properties.stil)||{};
+  return { color:st.linieFarbe||"#1565c0", weight:st.linieBreite_px||2, fill:st.fuellung!==false && f.geometry.type!=="LineString",
+    fillColor:st.fuellFarbe||st.linieFarbe||"#2196f3", fillOpacity:st.transparenz_prozent!=null?Math.max(0,1-st.transparenz_prozent/100):.3,
+    dashArray:st.linienstil&&st.linienstil!=="durchgezogen"?"6 5":null };
+}
+let MAP=null, BASE=null, CTX=null, PINS=null, tileErr=0;
+const BASES={
+  av:[["ch.swisstopo.pixelkarte-grau","jpeg",18,0],["ch.kantone.cadastralwebmap-farbe","png",19,15]],
+  img:[["ch.swisstopo.swissimage","jpeg",20,0]],
+  lk:[["ch.swisstopo.pixelkarte-grau","jpeg",18,0]]
+};
+function setBase(k){
+  if(!MAP) return;
+  if(BASE) MAP.removeLayer(BASE);
+  BASE=L.layerGroup(BASES[k].map(([lay,ext,mz,minz])=>L.tileLayer(`https://wmts.geo.admin.ch/1.0.0/${lay}/default/current/3857/{z}/{x}/{y}.${ext}`,
+    {maxNativeZoom:mz,maxZoom:21,minZoom:minz||0,attribution:'© <a href="https://www.swisstopo.admin.ch" target="_blank" rel="noopener">swisstopo</a>, AV',crossOrigin:true})
+    .on("tileerror",()=>{ if(++tileErr===3) noteMap("Hintergrundkarte nicht erreichbar (in der Artifact-Ansicht gesperrt). Lokal geöffnet erscheint die swisstopo-Karte."); }))).addTo(MAP);
+  BASE.eachLayer(l=>l.bringToBack&&l.bringToBack());
+}
+function noteMap(t){ const n=$("mapnote"); n.textContent=t||""; n.hidden=!t; }
+function initMap(){
+  if(MAP) return true;
+  if(typeof L==="undefined"){ noteMap("Kartenbibliothek nicht geladen (Internetverbindung prüfen)."); return false; }
+  MAP=L.map("map",{zoomControl:true,attributionControl:true}).setView([46.8,8.23],8);
+  L.control.scale({imperial:false}).addTo(MAP);
+  CTX=L.layerGroup().addTo(MAP); PINS=L.layerGroup().addTo(MAP);
+  setBase($("baseSel").value);
+  MAP.on("click",e=>{ if(S.addMode) addFromMap(e.latlng); });
+  return true;
+}
+function renderMap(sched){
+  const info=mapOrder(sched);
+  // Liste unter der Karte
+  $("mlist").innerHTML=S.buildings.map((b,i)=>{ const o=info.get(b.id);
+    return `<li data-goto="${i}" class="${i===S.active?"act":""}" style="--pc:${o?o.color:"#8a96a3"}"><span class="n">${o?o.n:"–"}</span><span class="a" title="${esc(b.adresse)}">${esc(b.adresse)}</span><span class="d">${o?"Tag "+o.day+" · "+chDate(o.date).slice(0,6):(b.pt||b.geoms&&b.geoms.length?"nicht geplant":"ohne Lage")}</span></li>`; }).join("")
+    || '<li class="hint" style="display:block">Noch keine Adressen. GeoJSON laden oder «+ aus Karte» wählen und auf ein Gebäude klicken.</li>';
+  if(!initMap()) return;
+  MAP.invalidateSize();
+  CTX.clearLayers();
+  for(const f of S.features){
+    const st=stilOf(f);
+    L.geoJSON(f,{style:()=>st, pointToLayer:(ft,ll)=>L.circleMarker(ll,{radius:6,color:st.color,weight:2,fillColor:st.fillColor,fillOpacity:.9}),interactive:false}).addTo(CTX);
+  }
+  PINS.clearLayers();
+  S.buildings.forEach((b,i)=>{
+    if(!b.pt) return;
+    const o=info.get(b.id), color=o?o.color:"#8a96a3";
+    for(const g of (b.geoms||[])) if(g.type!=="Point") L.geoJSON(g,{style:{color,weight:i===S.active?4:2,fill:false}}).on("click",()=>{ if(!S.addMode){ S.active=i; render(); } }).addTo(PINS);
+    L.marker(b.pt,{icon:L.divIcon({className:"pin"+(i===S.active?" act":""),html:`<span style="--pc:${color}">${o?o.n:"–"}</span>`,iconSize:[26,26],iconAnchor:[13,13]}),keyboard:false})
+      .bindTooltip(esc(b.adresse)+(o?" · Tag "+o.day+", "+chDate(o.date):""),{direction:"top",offset:[0,-14]})
+      .on("click",()=>{ S.active=i; render(); }).addTo(PINS);
+  });
+  if(S.fitPending){ fitMap(); S.fitPending=false; }
+}
+function mapBounds(){
+  const pts=[...S.features.flatMap(f=>coordsOf(f.geometry)).map(([x,y])=>[y,x]), ...S.buildings.filter(b=>b.pt).map(b=>b.pt)];
+  return pts.length? L.latLngBounds(pts) : null;
+}
+function fitMap(){ const bb=mapBounds(); if(bb&&bb.isValid()) MAP.fitBounds(bb.pad(0.2),{maxZoom:19}); }
+
+/* Gebäude per Kartenklick aus dem GWR übernehmen */
+async function addFromMap(ll){
+  const bb=MAP.getBounds(), sz=MAP.getSize();
+  say("Suche Gebäude im GWR …");
+  try{
+    const url=GWR_API+"identify?geometry="+ll.lng+","+ll.lat+"&geometryType=esriGeometryPoint&sr=4326&layers=all:"+GWR_LAYER
+      +"&tolerance=10&mapExtent="+[bb.getWest(),bb.getSouth(),bb.getEast(),bb.getNorth()].join(",")+"&imageDisplay="+sz.x+","+sz.y+",96&returnGeometry=true&geometryFormat=geojson&lang=de";
+    const j=await getJSON(url), res=j.results||[];
+    if(!res.length){ say("Kein Gebäude an dieser Stelle gefunden. Näher zoomen und direkt auf das Gebäude klicken.","err"); return; }
+    const r=res[0], a=r.attributes||r.properties||{}, egid=String(a.egid||"");
+    const ex=S.buildings.findIndex(x=>x.egid&&x.egid===egid);
+    if(ex>=0){ S.active=ex; render(); say("«"+shortAdr(S.buildings[ex].adresse)+"» ist bereits erfasst."); return; }
+    const nb=blankBuilding(); nb.egid=egid; nb.adresse=gwrAddress(a)||"Neue Adresse"; nb.geoms=[];
+    const c=r.geometry&&r.geometry.coordinates;
+    nb.pt = c ? (Math.abs(c[0])>1000 ? lv95ToWgs(c[0],c[1]) : [c[1],c[0]]) : [ll.lat,ll.lng];
+    const n=applyGWR(nb,a); nb.include=true;
+    S.buildings.push(nb); S.active=S.buildings.length-1; render();
+    say("«"+shortAdr(nb.adresse)+"» hinzugefügt"+(n?" mit "+n+" Wohnungen aus dem GWR.":", im GWR sind keine Wohnungen erfasst."),"ok");
+  }catch(e){ say(isBlocked(e)?BLOCKED_MSG:"GWR-Abfrage fehlgeschlagen.","err"); }
+}
+
+/* Kartenbild (JPG) für Excel und Download: WMS-Hintergrund + Perimeter-Objekte + nummerierte Adressen */
+function loadImg(src,ms){ return new Promise((res,rej)=>{ const im=new Image(); im.crossOrigin="anonymous"; const t=setTimeout(()=>rej(new Error("timeout")),ms); im.onload=()=>{clearTimeout(t);res(im);}; im.onerror=()=>{clearTimeout(t);rej(new Error("load"));}; im.src=src; }); }
+async function renderMapImage(W,H){
+  const pts=[...S.features.flatMap(f=>coordsOf(f.geometry)), ...S.buildings.filter(b=>b.pt).map(b=>[b.pt[1],b.pt[0]])];
+  if(!pts.length) return null;
+  const mx=lng=>lng*20037508.34/180, my=lat=>Math.log(Math.tan((90+lat)*Math.PI/360))*6378137;
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  for(const [lng,lat] of pts){ const x=mx(lng), y=my(lat); x0=Math.min(x0,x); x1=Math.max(x1,x); y0=Math.min(y0,y); y1=Math.max(y1,y); }
+  const lat0=pts[0][1], k=1/Math.cos(lat0*Math.PI/180);            // Mercator-Massstabsfaktor
+  let w=Math.max(x1-x0,160*k), hh=Math.max(y1-y0,100*k); w*=1.35; hh*=1.35;
+  if(w/hh>W/H) hh=w*H/W; else w=hh*W/H;
+  const cx=(x0+x1)/2, cy=(y0+y1)/2; x0=cx-w/2; x1=cx+w/2; y0=cy-hh/2; y1=cy+hh/2;
+  const toPx=([lng,lat])=>[(mx(lng)-x0)/(x1-x0)*W,(y1-my(lat))/(y1-y0)*H];
+  const mk=()=>{ const c=document.createElement("canvas"); c.width=W; c.height=H; const g=c.getContext("2d"); g.fillStyle="#f2f4f6"; g.fillRect(0,0,W,H); return [c,g]; };
+  let [c,g]=mk(), base=false;
+  const widthM=(x1-x0)/k, layer=widthM>3000?"ch.swisstopo.pixelkarte-farbe":"ch.kantone.cadastralwebmap-farbe";
+  try{
+    const im=await loadImg(`https://wms.geo.admin.ch/?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=${layer}&STYLES=&CRS=EPSG:3857&BBOX=${x0},${y0},${x1},${y1}&WIDTH=${W}&HEIGHT=${H}&FORMAT=image/png`,9000);
+    g.drawImage(im,0,0,W,H); g.getImageData(0,0,1,1); base=true;
+  }catch(_){ [c,g]=mk(); base=false; }
+  // Perimeter-Objekte
+  for(const f of S.features){
+    const st=stilOf(f), gm=f.geometry;
+    const rings = gm.type==="Polygon"?gm.coordinates : gm.type==="MultiPolygon"?gm.coordinates.flat() : null;
+    g.strokeStyle=st.color; g.lineWidth=st.weight*1.5; g.setLineDash(st.dashArray?[10,8]:[]);
+    if(rings){ g.beginPath(); for(const r of rings){ r.forEach((p,i)=>{ const [x,y]=toPx(p); i?g.lineTo(x,y):g.moveTo(x,y); }); g.closePath(); }
+      if(st.fill){ g.globalAlpha=st.fillOpacity; g.fillStyle=st.fillColor; g.fill("evenodd"); g.globalAlpha=1; } g.stroke(); }
+    else if(gm.type==="LineString"){ g.beginPath(); gm.coordinates.forEach((p,i)=>{ const [x,y]=toPx(p); i?g.lineTo(x,y):g.moveTo(x,y); }); g.stroke(); }
+    else if(gm.type==="Point"){ const [x,y]=toPx(gm.coordinates); g.beginPath(); g.arc(x,y,8,0,7); g.fillStyle=st.fillColor; g.fill(); g.stroke(); }
+  }
+  g.setLineDash([]);
+  // Nummerierte Adressen
+  const info=mapOrder(SCHED), legend=[];
+  S.buildings.forEach(b=>{ if(!b.pt) return; const o=info.get(b.id), [x,y]=toPx([b.pt[1],b.pt[0]]);
+    g.beginPath(); g.arc(x,y,20,0,7); g.fillStyle=o?o.color:"#8a96a3"; g.fill(); g.lineWidth=4; g.strokeStyle="#fff"; g.stroke();
+    g.fillStyle="#fff"; g.font="bold 20px Arial, sans-serif"; g.textAlign="center"; g.textBaseline="middle"; g.fillText(o?String(o.n):"–",x,y+1);
+    if(o) legend.push([o.n,o.color,shortAdr(b.adresse)+" · Tag "+o.day+", "+chDate(o.date)]); });
+  legend.sort((a,b)=>a[0]-b[0]);
+  if(legend.length){
+    const lh=30, bw=520, bh=16+legend.slice(0,20).length*lh;
+    g.fillStyle="rgba(255,255,255,.92)"; g.fillRect(16,H-16-bh,bw,bh); g.strokeStyle="#d6dde4"; g.lineWidth=1; g.strokeRect(16,H-16-bh,bw,bh);
+    legend.slice(0,20).forEach(([n,col,t],i)=>{ const y=H-16-bh+8+lh/2+i*lh;
+      g.beginPath(); g.arc(40,y,11,0,7); g.fillStyle=col; g.fill();
+      g.fillStyle="#fff"; g.font="bold 13px Arial"; g.textAlign="center"; g.fillText(String(n),40,y+1);
+      g.fillStyle="#16202a"; g.font="16px Arial"; g.textAlign="left"; g.fillText(t,62,y+1); });
+  }
+  // Massstab
+  const mpp=(x1-x0)/W/k, nice=[10,20,50,100,200,500,1000,2000,5000].find(v=>v/mpp>120)||5000, px=nice/mpp;
+  g.fillStyle="rgba(255,255,255,.92)"; g.fillRect(W-px-60,H-58,px+44,42);
+  g.fillStyle="#16202a"; g.fillRect(W-px-40,H-30,px,6); g.font="14px Arial"; g.textAlign="center"; g.fillText(nice>=1000?nice/1000+" km":nice+" m",W-40-px/2,H-42);
+  if(base){ g.font="12px Arial"; g.textAlign="right"; g.fillStyle="#16202a"; g.fillText("© swisstopo, Amtliche Vermessung",W-12,16); }
+  return {b64:c.toDataURL("image/jpeg",0.9).split(",")[1], base};
+}
+
+/* ---------- Rendering ---------- */
+function say(t,cls){ const m=$("msg"); m.textContent=t||""; m.className=cls||""; }
+
+function renderParams(sched){
+  const p=S.params;
+  const row=(lbl,id,type,val,extra="",cls="")=>`<label class="prow ${cls}"><span>${lbl}</span><input id="p_${id}" type="${type}" value="${esc(val)}" ${extra}></label>`;
+  const b=S.buildings[S.active];
+  const key = p.sequential ? "all" : (b&&b.id);
+  const days = key ? daysOf(sched,key) : [];
+  let prev=null;
+  const dayRows=days.map(d=>{
+    const ov=(key+":"+d.idx) in S.dayDates, bad=prev && d.date<=prev; prev=d.date;
+    return `<div class="drow ${bad?"bad":ov?"ov":""}">
+      <span class="nr">Tag ${d.idx+1}</span>
+      <input type="date" data-day="${esc(key)}:${d.idx}" value="${d.date}" aria-label="Datum Einsatztag ${d.idx+1}">
+      ${ov?`<button class="btn ghost sm" data-dayreset="${esc(key)}:${d.idx}" type="button" title="Auf Serie zurücksetzen" aria-label="Zurücksetzen">↺</button>`:`<span class="mono hint">${WD[wday(d.date)]}</span>`}
+      <span class="who">${ov?WD[wday(d.date)]+" · ":""}${esc([...d.adr].join(", "))}${bad?" · liegt nicht nach dem Vortag":""}</span>
+    </div>`;}).join("");
+  $("params").innerHTML=`
+    <fieldset><h2>Einsatztage ${Object.keys(S.dayDates).length?'<button class="btn sm" id="daysReset" type="button">Serie zurücksetzen</button>':""}</h2>
+      ${row("Startdatum Serie","startDate","date",p.startDate,"","wide")}
+      <div class="days" aria-label="Arbeitstage">${[1,2,3,4,5,6].map(d=>`<label><input type="checkbox" data-wd="${d}" ${p.workdays.includes(d)?"checked":""}>${WD[d]}</label>`).join("")}</div>
+      <div class="dlist">${dayRows||'<span class="hint">Noch keine Termine geplant.</span>'}</div>
+      <span class="hint">${p.sequential?"Datum anpassen: Folgetage laufen ab dort weiter.":"Einsatztage der Adresse «"+esc(b?shortAdr(b.adresse):"")+"»."}</span>
+    </fieldset>
+    <fieldset><h2>Tag</h2>
+      ${row("Arbeitsbeginn","dayStart","time",p.dayStart)}
+      ${row("Arbeitsende","dayEnd","time",p.dayEnd)}
+      <label class="chk"><input id="p_lunch" type="checkbox" ${p.lunch?"checked":""}><span>Mittagspause</span></label>
+      ${row("Pause von","lunchStart","time",p.lunchStart,p.lunch?"":"disabled")}
+      ${row("Pause bis","lunchEnd","time",p.lunchEnd,p.lunch?"":"disabled")}
+    </fieldset>
+    <fieldset><h2>Dauer [min]</h2>
+      ${row("Gross ab Zimmer","bigFrom","number",p.bigFrom,'step="0.5" min="1"')}
+      ${row("Wohnung gross inkl. Keller","durBig","number",p.durBig,'min="0" step="5"')}
+      ${row("Wohnung klein inkl. Keller","durSmall","number",p.durSmall,'min="0" step="5"')}
+      ${row("Allgemeine Räume","durCommon","number",p.durCommon,'min="0" step="5"')}
+      ${row("Treppenhaus je Geschoss","stairPerFloor","number",p.stairPerFloor,'min="0" step="1"')}
+      ${row("Wechselzeit","gap","number",p.gap,'min="0" step="1"')}
+    </fieldset>
+    <fieldset><h2>Ablauf</h2>
+      <label class="prow"><span>Reihenfolge</span><select id="p_order"><option value="up" ${p.order==="up"?"selected":""}>EG → oben</option><option value="down" ${p.order==="down"?"selected":""}>oben → EG</option></select></label>
+      <label class="prow"><span>Treppenhaus</span><select id="p_stairPos"><option value="end" ${p.stairPos==="end"?"selected":""}>am Schluss</option><option value="start" ${p.stairPos==="start"?"selected":""}>zu Beginn</option></select></label>
+      <label class="chk"><input id="p_sequential" type="checkbox" ${p.sequential?"checked":""}><span>Adressen fortlaufend planen (sonst jede ab Startdatum)</span></label>
+      <label class="chk"><input id="p_newDayPerAddress" type="checkbox" ${p.newDayPerAddress?"checked":""} ${p.sequential?"":"disabled"}><span>Jede Adresse an neuem Tag beginnen</span></label>
+      ${row("Adresswechsel [min]","travel","number",p.travel,`min="0" step="5" ${p.sequential&&!p.newDayPerAddress?"":"disabled"}`)}
+    </fieldset>
+    <button class="btn sm reset" id="p_reset" type="button">Parameter auf Standard</button>`;
+}
+
+function renderMain(sched){
+  const p=S.params;
+  if(!S.buildings.length){
+    $("main").innerHTML=`<div class="empty"><h2>Noch keine Adresse</h2>
+      <p class="hint">Eine Adresse von Grund auf erfassen oder den GeoJSON-Export aus dem Offert-Perimeter-Tool laden (Datei auch hierher ziehen).</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="emptyNew" type="button">+ Adresse erfassen</button><button class="btn" id="emptyImport" type="button">GeoJSON laden</button></div></div>`;
+    return;
+  }
+  S.active=Math.min(S.active,S.buildings.length-1);
+  const tabs=`<button class="tab ov" role="tab" aria-selected="${S.active===-1}" data-tab="-1">Übersicht<span class="cnt">${S.buildings.filter(b=>b.include).length} Adr.</span></button>`+S.buildings.map((b,i)=>`<button class="tab ${b.include?"":"off"}" role="tab" aria-selected="${i===S.active}" data-tab="${i}">${esc(shortAdr(b.adresse))}<span class="cnt">${b.units.length} Whg</span></button>`).join("")
+    + `<button class="tab add" id="tabNew" type="button" title="Neue Adresse erfassen">+ Adresse</button>`;
+  if(S.active===-1){ $("main").innerHTML=`<div class="tabs" role="tablist">${tabs}</div>`+renderOverview(sched); return; }
+  const b=S.buildings[S.active], rows=sched[S.active].rows;
+  const total=rows.reduce((s,r)=>s+r.dur,0);
+  const first=rows[0], last=rows[rows.length-1];
+  const PILLS={ "GWR":'<span class="pill ok">Wohnungen aus GWR</span>', "Beispiel":'<span class="pill">Beispiel</span>', "manuell":'<span class="pill">manuell erfasst</span>',
+    "GWR ohne Wohnungen":'<span class="pill warn">GWR: keine Wohnungen erfasst</span>', "generiert":'<span class="pill warn">Wohnungen generiert, bitte prüfen</span>' };
+  const gwrPill = PILLS[b.gwr]||"";
+
+  const unitRows=b.units.map((x,i)=>{
+    const k=unitKat(x,p);
+    return `<tr>
+      <td><select data-u="${i}" data-f="floor" aria-label="Stockwerk">${floorOpts(x.floor,b.geschosse)}</select></td>
+      <td><input data-u="${i}" data-f="nr" value="${esc(x.nr)}" aria-label="Wohnung"></td>
+      <td><input data-u="${i}" data-f="lage" value="${esc(x.lage)}" aria-label="Lage"></td>
+      <td><input class="n" data-u="${i}" data-f="zimmer" type="number" step="0.5" min="0" value="${esc(x.zimmer)}" aria-label="Zimmer"></td>
+      <td><span class="kat" style="--k:var(${KAT[k].v})"><i></i>${k}</span></td>
+      <td><input class="n" data-u="${i}" data-f="dur" type="number" min="0" step="5" placeholder="${k==="gross"?p.durBig:p.durSmall}" value="${esc(x.dur??"")}" aria-label="Dauer"></td>
+      <td><button class="btn ghost sm" data-del="${i}" type="button" aria-label="Wohnung entfernen">✕</button></td></tr>`;}).join("");
+  const commonRows=b.common.map((c,i)=>`<tr>
+      <td colspan="5"><input data-c="${i}" data-f="name" value="${esc(c.name)}" aria-label="Bezeichnung"></td>
+      <td><input class="n" data-c="${i}" data-f="dur" type="number" min="0" step="5" placeholder="${p.durCommon}" value="${esc(c.dur??"")}" aria-label="Dauer"></td>
+      <td><button class="btn ghost sm" data-cdel="${i}" type="button" aria-label="Raum entfernen">✕</button></td></tr>`).join("");
+
+  let lastIdx=null, prevEnd=null, sch="";
+  const ls=toMin(p.lunchStart), le=toMin(p.lunchEnd);
+  for(const r of rows){
+    if(r.dayIdx!==lastIdx){
+      const k=r.key+":"+r.dayIdx, ov=k in S.dayDates;
+      sch+=`<tr class="day ${ov?"ov":""}"><td colspan="6"><span class="dwrap"><span class="dn">Tag ${r.dayIdx+1}</span>
+        <input type="date" data-day="${esc(k)}" value="${r.date}" aria-label="Datum Einsatztag ${r.dayIdx+1}"><span>${WD[wday(r.date)]}</span>
+        ${ov?`<button class="btn ghost sm" data-dayreset="${esc(k)}" type="button" title="Auf Serie zurücksetzen">↺ Serie</button>`:""}</span></td></tr>`;
+      lastIdx=r.dayIdx; prevEnd=null;
+    }
+    if(p.lunch && prevEnd!=null && prevEnd<=ls && r.start>=le) sch+=`<tr class="pause"><td class="t">${p.lunchStart}</td><td class="t">${p.lunchEnd}</td><td colspan="4">Mittagspause</td></tr>`;
+    sch+=`<tr><td class="t">${hm(r.start)}</td><td class="t">${hm(r.end)}</td><td>${esc(r.floor)}</td><td>${esc(r.nr)}${r.lage?` <span class="hint">${esc(r.lage)}</span>`:""}</td>
+      <td><span class="kat" style="--k:var(${KAT[r.kat].v})"><i></i>${esc(r.kat==="gross"||r.kat==="klein"?r.zimmer+" Zi.":r.objekt)}</span></td><td class="t">${r.dur}′</td></tr>`;
+    prevEnd=r.end;
+  }
+
+  const span=Math.max(1,toMin(p.dayEnd)-toMin(p.dayStart));
+  const idxs=[...new Set(rows.map(r=>r.dayIdx))];
+  const strip = idxs.map(d=>{
+    const dr=rows.filter(r=>r.dayIdx===d);
+    return `<div class="strip" title="Tag ${d+1}, ${chDate(dr[0].date)}">${dr.map(r=>`<span style="--k:var(${KAT[r.kat].v});width:${(r.dur/span*100).toFixed(2)}%" title="${hm(r.start)} ${esc(r.objekt)} ${esc(r.nr)}"></span>`).join("")}</div>`;
+  }).join("");
+
+  $("main").innerHTML=`
+    <div class="tabs" role="tablist">${tabs}</div>
+    <section class="panel" role="tabpanel">
+      <div class="bhead">
+        <input class="adr" id="b_adresse" value="${esc(b.adresse)}" aria-label="Adresse">
+        <span class="sp">
+          <label class="chk"><input type="checkbox" id="b_include" ${b.include?"checked":""}><span>einplanen</span></label>
+          <button class="btn sm danger" id="b_remove" type="button">${S.confirmDel===b.id?"Wirklich entfernen?":"Adresse entfernen"}</button>
+        </span>
+      </div>
+      <div class="meta">
+        <label>EGID <input id="b_egid" value="${esc(b.egid)}" inputmode="numeric" placeholder="optional"></label>
+        <span>Wohnungen <b>${b.units.length}</b></span>
+        <span>Termine <b>${rows.length}</b></span>
+        <span>Inspektionszeit <b>${durText(total)}</b></span>
+        ${first?`<span>Zeitraum <b>${chDate(first.date)} ${hm(first.start)} – ${chDate(last.date)} ${hm(last.end)}</b></span>`:""}
+        ${gwrPill}
+      </div>
+      ${strip?`<div class="blk">${strip}<div class="legend">${Object.values(KAT).map(k=>`<span class="kat" style="--k:var(${k.v})"><i></i>${k.label}</span>`).join("")}<span>Balken = Arbeitstag ${p.dayStart}–${p.dayEnd}</span></div></div>`:""}
+      <div class="cols">
+        <div class="blk">
+          <h3>Wohnungen<span class="sp"><button class="btn sm" id="addUnit" type="button">+ Wohnung</button>${b.gwr!=="Beispiel"?'<button class="btn sm" id="gwrOne" type="button">aus GWR</button>':""}</span></h3>
+          <div class="scroll"><table>
+            <thead><tr><th>Stock</th><th>Whg</th><th>Lage</th><th>Zi.</th><th>Typ</th><th>Min</th><th></th></tr></thead>
+            <tbody>${unitRows||`<tr><td colspan="7" class="hint">Keine Wohnungen erfasst. Mit «+ Wohnung» hinzufügen.</td></tr>`}</tbody>
+            <thead><tr><th colspan="5">Allgemeine Räume</th><th>Min</th><th><button class="btn sm" id="addCommon" type="button" aria-label="Raum hinzufügen">+</button></th></tr></thead>
+            <tbody>${commonRows}
+              <tr><td colspan="5">Treppenhaus: <input class="n" id="b_geschosse" type="number" min="0" value="${esc(b.geschosse)}" aria-label="Geschosse"> Geschosse × ${p.stairPerFloor} min</td><td class="t">${stairDur(b,p)}</td><td></td></tr>
+            </tbody></table></div>
+          <p class="hint">Leeres Min-Feld = Standarddauer aus den Parametern. Wohnungen ab ${p.bigFrom} Zimmern gelten als gross.</p>
+        </div>
+        <div class="blk">
+          <h3>Terminplan<span class="sp"><button class="btn sm" id="xlsxOne" type="button">Excel dieser Adresse</button></span></h3>
+          <div class="scroll"><table>
+            <thead><tr><th>Von</th><th>Bis</th><th>Stock</th><th>Wohnung</th><th>Objekt</th><th>Dauer</th></tr></thead>
+            <tbody>${sch||`<tr><td colspan="6" class="hint">${b.include?"Nichts zu planen.":"Adresse ist nicht eingeplant."}</td></tr>`}</tbody>
+          </table></div>
+        </div>
+      </div>
+    </section>`;
+}
+/* ---------- Übersicht: Kennzahlen, Adressliste, Gantt, alle Termine ---------- */
+function allRows(sched){
+  return sched.filter(e=>e.b.include).flatMap(e=>e.rows.map(r=>({...r,b:e.b})))
+    .sort((a,c)=>a.date.localeCompare(c.date)||a.start-c.start||String(a.b.adresse).localeCompare(c.b.adresse));
+}
+function ganttDates(sched){ return [...new Set(sched.flatMap(e=>e.b.include?e.rows.map(r=>r.date):[]))].sort(); }
+function ganttSpan(sched){
+  const p=S.params, ds=toMin(p.dayStart);
+  const de=Math.max(toMin(p.dayEnd), ...sched.flatMap(e=>e.rows.map(r=>r.end)));
+  return {ds,de,span:Math.max(1,de-ds)};
+}
+/* Kalendertage vom ersten bis letzten Einsatztag, inkl. freier Tage */
+function calDays(dates){ const out=[]; if(!dates.length) return out; for(let d=dates[0]; d<=dates[dates.length-1]; d=addDays(d,1)) out.push({d, work:dates.includes(d)}); return out; }
+function isoWeek(iso){ const d=dObj(iso), day=(d.getUTCDay()+6)%7; d.setUTCDate(d.getUTCDate()-day+3); const y=new Date(Date.UTC(d.getUTCFullYear(),0,4)); return 1+Math.round(((d-y)/864e5-3+((y.getUTCDay()+6)%7))/7); }
+function weekRuns(cal){ const runs=[]; for(const c of cal){ const w=isoWeek(c.d); if(runs.length&&runs[runs.length-1].w===w) runs[runs.length-1].n++; else runs.push({w,n:1}); } return runs; }
+function ganttHTML(sched){
+  const p=S.params, ent=sched.map((e,i)=>({e,i})).filter(({e})=>e.b.include&&e.rows.length);
+  if(!ent.length) return '<p class="hint">Keine Termine geplant.</p>';
+  const dates=ganttDates(sched), cal=calDays(dates), {ds,de,span}=ganttSpan(sched), compact=S.ganttMode==="kompakt";
+  const pct=m=>((m-ds)/span*100).toFixed(3)+"%";
+  const ls=toMin(p.lunchStart), le=toMin(p.lunchEnd);
+  const hours=[]; for(let h=Math.ceil(ds/60)*60; h<=de; h+=60) hours.push(h);
+  const lab=hours.filter(h=>compact||((h/60)%2===0));
+  const lunch=p.lunch&&le>ls?`<span class="lu" style="left:${pct(ls)};width:${((le-ls)/span*100).toFixed(3)}%"></span>`:"";
+  const lines=hours.map(h=>`<span class="gl" style="left:${pct(h)}"></span>`).join("");
+  const colw=c=> compact ? (c.work?"minmax(240px,1fr)":"32px") : "minmax(108px,1fr)";
+  let g=`<div class="gantt"><div class="gg" style="grid-template-columns:minmax(150px,210px) ${cal.map(colw).join(" ")}">`;
+  g+=`<div class="glab h kw"></div>`+weekRuns(cal).map(r=>`<div class="gkw" style="grid-column:span ${r.n}">KW ${r.w}</div>`).join("");
+  g+=`<div class="glab h">Adresse</div>`+cal.map(c=>{ const wd=wday(c.d), we=wd===0||wd===6;
+    if(!c.work) return `<div class="gh free" title="${WD[wd]} ${chDate(c.d)} · kein Einsatz"><span class="dl">${WD[wd]}<br>${c.d.slice(8)}.</span></div>`;
+    return `<div class="gh ${we?"wkend":""}"><span class="dl">${WD[wd]} ${chDate(c.d).slice(0,6)}</span>${lab.map(h=>`<span class="tk" style="left:${pct(h)}">${String(h/60).padStart(2,"0")}</span>`).join("")}</div>`; }).join("");
+  for(const {e,i} of ent){
+    g+=`<button class="glab" type="button" data-tab="${i}" title="${esc(e.b.adresse)}">${esc(shortAdr(e.b.adresse))}</button>`;
+    g+=cal.map(c=> !c.work ? `<div class="gc free"></div>` :
+      `<div class="gc">${lunch}${lines}${e.rows.filter(r=>r.date===c.d).map(r=>`<span class="bar" style="--k:var(${KAT[r.kat].v});left:${pct(r.start)};width:${(r.dur/span*100).toFixed(3)}%" title="${chDate(r.date)} ${hm(r.start)}–${hm(r.end)} · ${esc(r.floor)} ${esc(r.nr)} · ${esc(r.objekt)}"></span>`).join("")}</div>`).join("");
+  }
+  return g+`</div></div>`;
+}
+function renderOverview(sched){
+  const p=S.params, rows=allRows(sched);
+  const inc=sched.filter(e=>e.b.include);
+  const total=rows.reduce((s,r)=>s+r.dur,0), dates=ganttDates(sched);
+  const whg=inc.reduce((s,e)=>s+e.b.units.length,0);
+  const first=rows[0], last=rows[rows.length-1];
+  const adrRows=sched.map((e,i)=>{ const r=e.rows, f=r[0], l=r[r.length-1];
+    return `<tr class="go ${e.b.include?"":"off"}" data-goto="${i}"><td>${esc(e.b.adresse)}</td><td class="t">${esc(e.b.egid||"–")}</td><td class="t">${e.b.units.length}</td><td class="t">${r.length}</td>
+      <td class="t">${r.length?durText(r.reduce((s,x)=>s+x.dur,0)):"–"}</td><td class="t">${f?chDate(f.date)+" "+hm(f.start):"–"}</td><td class="t">${l?chDate(l.date)+" "+hm(l.end):"–"}</td>
+      <td>${e.b.include?"eingeplant":"nicht eingeplant"}</td></tr>`; }).join("");
+  let list="", lastDate=null;
+  for(const r of rows){
+    if(r.date!==lastDate){
+      const k=r.key+":"+r.dayIdx, ov=k in S.dayDates, nrs=[...new Set(rows.filter(x=>x.date===r.date).map(x=>x.dayIdx+1))];
+      list+=`<tr class="day ${ov?"ov":""}"><td colspan="8"><span class="dwrap">${p.sequential?`<span class="dn">Tag ${r.dayIdx+1}</span><input type="date" data-day="${esc(k)}" value="${r.date}" aria-label="Datum Einsatztag ${r.dayIdx+1}">`:`<span class="dn">Tag ${nrs.join("/")}</span><b>${chDate(r.date)}</b>`}
+        <span>${WD[wday(r.date)]}</span>${ov&&p.sequential?`<button class="btn ghost sm" data-dayreset="${esc(k)}" type="button">↺ Serie</button>`:""}</span></td></tr>`;
+      lastDate=r.date;
+    }
+    list+=`<tr><td class="t">${hm(r.start)}</td><td class="t">${hm(r.end)}</td><td>${esc(shortAdr(r.b.adresse))}</td><td>${esc(r.floor)}</td><td>${esc(r.nr)}${r.lage?` <span class="hint">${esc(r.lage)}</span>`:""}</td>
+      <td><span class="kat" style="--k:var(${KAT[r.kat].v})"><i></i>${esc(r.kat==="gross"||r.kat==="klein"?r.zimmer+" Zi.":r.objekt)}</span></td><td class="t">${r.dur}′</td></tr>`;
+  }
+  return `<section class="panel" role="tabpanel">
+    <div class="bhead"><h2 style="font-size:21px;font-weight:600">Übersicht aller Adressen</h2><span class="sp" style="margin-left:auto"><button class="btn primary sm" id="xlsxAll" type="button">Excel exportieren</button></span></div>
+    <div class="kpis">
+      <div class="kpi"><span>Adressen</span><b>${inc.length} / ${S.buildings.length}</b></div>
+      <div class="kpi"><span>Wohnungen</span><b>${whg}</b></div>
+      <div class="kpi"><span>Termine</span><b>${rows.length}</b></div>
+      <div class="kpi"><span>Inspektionszeit</span><b>${durText(total)}</b></div>
+      <div class="kpi"><span>Einsatztage</span><b>${dates.length}</b></div>
+      <div class="kpi"><span>Zeitraum</span><b>${first?chDate(first.date)+" – "+chDate(last.date):"–"}</b></div>
+    </div>
+    <div class="blk"><h3>Adressen</h3>
+      <div class="scroll"><table><thead><tr><th>Adresse</th><th>EGID</th><th>Whg</th><th>Termine</th><th>Zeit</th><th>Beginn</th><th>Ende</th><th>Status</th></tr></thead>
+      <tbody>${adrRows||'<tr><td colspan="8" class="hint">Keine Adressen.</td></tr>'}</tbody></table></div>
+      <p class="hint">Zeile anklicken, um die Adresse zu bearbeiten.</p></div>
+    ${einsaetzeHTML(sched)}
+    <div class="blk"><h3>Gantt-Diagramm <span class="hint">${(()=>{const c=calDays(dates);return c.length+" Kalendertage, davon "+c.filter(x=>!x.work).length+" ohne Einsatz";})()}</span>
+      <span class="gmode" role="group" aria-label="Darstellung Gantt"><button type="button" data-gmode="kalender" aria-pressed="${S.ganttMode==="kalender"}">Kalender</button><button type="button" data-gmode="kompakt" aria-pressed="${S.ganttMode==="kompakt"}">Kompakt</button></span></h3>${ganttHTML(sched)}
+      <div class="legend">${Object.values(KAT).map(k=>`<span class="kat" style="--k:var(${k.v})"><i></i>${k.label}</span>`).join("")}<span>Schraffierte Spalte = Tag ohne Einsatz · schraffiertes Band = Mittagspause</span></div></div>
+    <div class="blk"><h3>Alle Termine</h3>
+      <div class="scroll"><table><thead><tr><th>Von</th><th>Bis</th><th>Adresse</th><th>Stock</th><th>Wohnung</th><th>Objekt</th><th>Dauer</th></tr></thead>
+      <tbody>${list||'<tr><td colspan="7" class="hint">Keine Termine.</td></tr>'}</tbody></table></div></div>
+  </section>`;
+}
+function floorOpts(sel,gs){
+  const max=Math.max(Number(gs)||1, Number(sel)+1, 1), o=[];
+  for(let f=-2; f<max; f++) o.push(`<option value="${f}" ${Number(sel)===f?"selected":""}>${floorLabel(f)}</option>`);
+  return o.join("");
+}
+
+let SCHED=[];
+function render(){
+  SCHED=schedule(); renderParams(SCHED); renderMain(SCHED); renderMap(SCHED);
+  const n=S.buildings.filter(b=>b.include).length;
+  $("samples").checked=S.buildings.some(b=>b.gwr==="Beispiel");
+  $("src").textContent=(S.source?S.source+" · ":"")+n+" von "+S.buildings.length+" Adressen eingeplant";
+}
+
+/* ---------- Events ---------- */
+function addBuilding(){ const b=blankBuilding(); S.buildings.push(b); S.active=S.buildings.length-1; render(); const el=$("b_adresse"); if(el){ el.focus(); el.select(); } }
+function setDay(k,v){ if(v) S.dayDates[k]=v; else delete S.dayDates[k]; render(); }
+
+$("params").addEventListener("change",e=>{
+  const t=e.target, p=S.params;
+  if(t.dataset.day){ setDay(t.dataset.day,t.value); return; }
+  if(t.dataset.wd){ const d=+t.dataset.wd; p.workdays=t.checked?[...new Set([...p.workdays,d])].sort():p.workdays.filter(x=>x!==d); }
+  else if(t.id?.startsWith("p_")){
+    const k=t.id.slice(2);
+    if(t.type==="checkbox") p[k]=t.checked;
+    else if(t.type==="number") p[k]=t.value===""?DEFAULTS[k]:Number(t.value);
+    else p[k]=t.value||DEFAULTS[k];
+  }
+  render();
+});
+$("params").addEventListener("click",e=>{
+  const t=e.target.closest("button"); if(!t) return;
+  if(t.id==="p_reset"){ S.params=structuredClone(DEFAULTS); render(); say("Parameter auf Standardwerte zurückgesetzt."); }
+  if(t.id==="daysReset"){ S.dayDates={}; render(); say("Einsatztage folgen wieder der Serie ab Startdatum."); }
+  if(t.dataset.dayreset){ setDay(t.dataset.dayreset,null); }
+});
+
+$("main").addEventListener("click",e=>{
+  const tr=e.target.closest("tr[data-goto]"); if(tr){ S.active=+tr.dataset.goto; render(); window.scrollTo(0,0); return; }
+  const t=e.target.closest("button"); if(!t) return;
+  if(t.id==="emptyNew"||t.id==="tabNew"){ addBuilding(); return; }
+  if(t.id==="emptyImport"){ $("file").click(); return; }
+  if(t.id!=="b_remove") S.confirmDel=null;
+  if(t.dataset.tab!=null){ S.active=+t.dataset.tab; render(); return; }
+  if(t.dataset.dayreset){ setDay(t.dataset.dayreset,null); return; }
+  if(t.id==="xlsxAll"){ exportXlsx(null); return; }
+  if(t.dataset.gmode){ S.ganttMode=t.dataset.gmode; render(); return; }
+  if(t.id==="addPerson"){ S.team.push({id:"p"+Date.now().toString(36), name:"", email:"", std:true}); saveTeam(); render();
+    const inp=document.querySelector('[data-team="'+S.team[S.team.length-1].id+'"][data-f="name"]'); if(inp) inp.focus(); return; }
+  if(t.dataset.tdel){ const id=t.dataset.tdel; S.team=S.team.filter(x=>x.id!==id); for(const k in S.assign) S.assign[k]=S.assign[k].filter(x=>x!==id); saveTeam(); render(); return; }
+  if(t.dataset.assign){ toggleAssign(t.dataset.assign,t.dataset.pid); render(); return; }
+  if(t.dataset.bics){ const bk=blocksOf(SCHED).find(x=>x.key===t.dataset.bics); if(bk) saveBlockIcs(bk); return; }
+  if(t.dataset.bmail){ const bk=blocksOf(SCHED).find(x=>x.key===t.dataset.bmail); if(bk) openCompose(personsOf(bk),[bk],"Einladung · "+blockHead(bk)); return; }
+  if(t.dataset.invite){ const pp=S.team.find(x=>x.id===t.dataset.invite); if(pp) openCompose([pp],blocksOfPerson(blocksOf(SCHED),pp.id),"Einladung an "+(pp.name||pp.email||"Person")); return; }
+  if(t.dataset.pics){ const pp=S.team.find(x=>x.id===t.dataset.pics); if(pp) saveIcsMany(blocksOfPerson(blocksOf(SCHED),pp.id),"Inspektionen_"+safe(pp.name||"Person")+".ics"); return; }
+  if(t.id==="icsAll"){ saveIcsMany(blocksOf(SCHED),"Inspektionen_"+todayISO()+".ics"); return; }
+  if(t.id==="inviteAll"){ const bks=blocksOf(SCHED); const ids=new Set(bks.flatMap(assigned)); openCompose(S.team.filter(x=>ids.has(x.id)),bks,"Einladung an das ganze Team"); return; }
+  const b=S.buildings[S.active]; if(!b) return;
+  if(t.id==="b_remove"){
+    if(S.confirmDel===b.id){ S.buildings.splice(S.active,1); S.confirmDel=null; S.active=S.buildings.length?Math.max(0,S.active-1):-1; render(); say("Adresse entfernt."); }
+    else { S.confirmDel=b.id; render(); }
+    return;
+  }
+  if(t.dataset.del!=null){ b.units.splice(+t.dataset.del,1); render(); return; }
+  if(t.dataset.cdel!=null){ b.common.splice(+t.dataset.cdel,1); render(); return; }
+  if(t.id==="addUnit"){ const lf=b.units.length?b.units[b.units.length-1].floor:0; b.units.push(u(lf,"","",3.5)); render(); return; }
+  if(t.id==="addCommon"){ b.common.push({name:"Weiterer Raum", dur:null}); render(); return; }
+  if(t.id==="gwrOne"){ say("Lade Wohnungen aus dem GWR …"); loadGWR(b).then(n=>{render(); say(n? n+" Wohnungen aus dem GWR übernommen." : "Im GWR sind für diese Adresse keine Wohnungen erfasst.", n?"ok":"err");}).catch(e=>say(isBlocked(e)?BLOCKED_MSG:"Gebäude im GWR nicht gefunden (EGID "+(b.egid||"–")+").","err")); return; }
+  if(t.id==="xlsxOne"){ exportXlsx([S.active]); }
+});
+$("main").addEventListener("change",e=>{
+  const t=e.target;
+  if(t.dataset.day){ setDay(t.dataset.day,t.value); return; }
+  if(t.dataset.team){ const pp=S.team.find(x=>x.id===t.dataset.team); if(pp){ const f=t.dataset.f; pp[f]= f==="std"?t.checked:t.value.trim(); saveTeam(); render(); } return; }
+  if(t.id==="o_name"||t.id==="o_email"){ S.org[t.id==="o_name"?"name":"email"]=t.value.trim(); saveTeam(); render(); return; }
+  const b=S.buildings[S.active]; if(!b) return;
+  if(t.id==="b_include"){ b.include=t.checked; }
+  else if(t.id==="b_adresse"){ b.adresse=t.value.trim()||"Neue Adresse"; }
+  else if(t.id==="b_egid"){ b.egid=t.value.trim(); }
+  else if(t.id==="b_geschosse"){ b.geschosse=Math.max(0,parseInt(t.value)||0); }
+  else if(t.dataset.u!=null){ const x=b.units[+t.dataset.u], f=t.dataset.f;
+    x[f]= f==="floor"?Number(t.value) : f==="zimmer"?(t.value===""?"":Number(t.value)) : f==="dur"?(t.value===""?null:Number(t.value)) : t.value; }
+  else if(t.dataset.c!=null){ const c=b.common[+t.dataset.c]; c[t.dataset.f]= t.dataset.f==="dur"?(t.value===""?null:Number(t.value)):t.value; }
+  else return;
+  render();
+});
+
+/* Kopfzeile */
+$("samples").onchange=e=>{
+  if(e.target.checked){ const s=sampleBuildings(); S.buildings=[...s,...S.buildings]; }
+  else { S.buildings=S.buildings.filter(b=>b.gwr!=="Beispiel"); }
+  S.active=-1;
+  lsSet("ip_samples",e.target.checked?"1":"0"); render();
+};
+$("btnNew").onclick=addBuilding;
+$("btnImport").onclick=()=>$("file").click();
+$("file").onchange=e=>{ const f=e.target.files[0]; if(f) readFile(f); e.target.value=""; };
+$("btnGwr").onclick=loadAllGWR;
+$("btnLogo").onclick=()=>$("logoFile").click();
+$("logoFile").onchange=e=>{ const f=e.target.files[0]; if(f) loadLogo(f); e.target.value=""; };
+$("btnLogoDel").onclick=()=>{ S.logo=null; lsSet("ip_logo",null); renderLogo(); say("Logo entfernt."); };
+function applyTheme(v){ const r=document.documentElement; if(v==="system") r.removeAttribute("data-theme"); else r.setAttribute("data-theme",v); $("theme").value=v; }
+$("theme").onchange=e=>{ applyTheme(e.target.value); lsSet("ip_theme",e.target.value); };
+
+/* Import: Datei-Dialog und Drag & Drop */
+document.addEventListener("dragover",e=>{ e.preventDefault(); document.body.classList.add("drop"); });
+document.addEventListener("dragleave",e=>{ if(!e.relatedTarget) document.body.classList.remove("drop"); });
+document.addEventListener("drop",e=>{ e.preventDefault(); document.body.classList.remove("drop"); const f=e.dataTransfer.files[0]; if(f) readFile(f); });
+function readFile(f){
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{ const r=importGeoJSON(JSON.parse(rd.result)); S.source=f.name; render();
+      say(r.n+" Adresse(n) übernommen"+(r.dup?", "+r.dup+" doppelte übersprungen":"")+(r.skipped?", "+r.skipped+" Objekt(e) ohne Adresse übersprungen":"")+".","ok");
+      if(r.n) loadAllGWR();
+    }catch(err){ say("Import fehlgeschlagen: "+(err.message||"keine gültige GeoJSON-Datei."),"err"); }
+  };
+  rd.readAsText(f);
+}
+
+/* ---------- Export ---------- */
+const COLS=[["Nr",5],["Einsatztag",10],["Datum",11],["Tag",5],["Von",7],["Bis",7],["Dauer [min]",11],["Stockwerk",11],["Wohnung",10],["Lage",12],["Zimmer",8],["Objekt",42],["Bemerkung",32]];
+const XL_ACCENT="FF1D5D8C", XL_HEAD="FFE3EDF6", XL_LINE="FFD6DDE4";
+function xlDate(iso){ const [y,m,d]=iso.split("-").map(Number); return new Date(Date.UTC(y,m-1,d)); }
+function sheetName(s,used){ let n=shortAdr(s).replace(/[\[\]:*?\/\\]/g," ").slice(0,31).trim()||"Adresse"; let k=n,i=2; while(used.has(k)){ k=n.slice(0,28)+" "+i++; } used.add(k); return k; }
+
+/* Blatt mit Kopf (Titel, Untertitel, Logo rechts), Tabellenkopf in Zeile 4 */
+const XL_KAT={gross:"FF1D5D8C", klein:"FF6A8FB0", allg:"FF8A6D3B", tr:"FF5F6F7F"}, XL_SUM="FFC9DBEA", XL_LUNCH="FFEEF2F5";
+const fill=argb=>({type:"pattern",pattern:"solid",fgColor:{argb}});
+/* Kopf: Titel, Untertitel, Logo (oder Schriftzug) bei logoCol */
+function sheetHead(ws, logoId, title, sub, logoCol){
+  ws.getRow(1).height=30; ws.getRow(2).height=18;
+  const t=ws.getCell("A1"); t.value=title; t.font={name:"Calibri",size:15,bold:true,color:{argb:"FF16202A"}};
+  const s=ws.getCell("A2"); s.value=sub; s.font={name:"Calibri",size:10,color:{argb:"FF56636F"}};
+  if(logoId!=null){
+    const h=38, w=Math.round(h*S.logo.w/S.logo.h);
+    ws.addImage(logoId,{tl:{col:logoCol,row:0.15},ext:{width:w,height:h},editAs:"absolute"});
+  } else {
+    const c=ws.getCell(1,logoCol+1); c.value="TERRADATA AG"; c.font={name:"Calibri",size:12,bold:true,color:{argb:XL_ACCENT}}; c.alignment={horizontal:"left",vertical:"middle"};
+  }
+}
+function newSheet(wb,name,frozen){
+  return wb.addWorksheet(name,{views:[{state:"frozen",...frozen}],
+    pageSetup:{paperSize:9,orientation:"landscape",fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:.5,right:.5,top:.6,bottom:.6,header:.3,footer:.3}},
+    headerFooter:{oddFooter:"&L&8Terradata AG · Inspektionsplan&R&8Seite &P / &N"}});
+}
+function addSheet(wb, logoId, name, title, sub, cols, data, dateCol){
+  const ws=newSheet(wb,name,{ySplit:4});
+  ws.pageSetup.printTitlesRow="4:4";
+  ws.columns=cols.map(([,w])=>({width:w}));
+  sheetHead(ws,logoId,title,sub,cols.length-2);
+  const hr=ws.getRow(4); hr.values=cols.map(([n])=>n); hr.height=20;
+  hr.eachCell(c=>{ c.font={bold:true,color:{argb:"FF16202A"}}; c.fill={type:"pattern",pattern:"solid",fgColor:{argb:XL_HEAD}};
+    c.border={bottom:{style:"medium",color:{argb:XL_ACCENT}}}; c.alignment={vertical:"middle"}; });
+  let prevDate=null;
+  data.forEach((vals,i)=>{
+    const r=ws.getRow(5+i); r.values=vals;
+    const dv=dateCol!=null?String(vals[dateCol]):null, newDay=dv!==prevDate; prevDate=dv;
+    r.eachCell({includeEmpty:true},(c,ci)=>{ if(ci>cols.length) return;
+      c.border={top:{style:newDay&&i>0?"thin":"hair",color:{argb:newDay&&i>0?XL_ACCENT:XL_LINE}}}; c.alignment={vertical:"middle",wrapText:ci===cols.length}; });
+    if(dateCol!=null) r.getCell(dateCol+1).numFmt="dd.mm.yyyy";
+  });
+  ws.autoFilter={from:{row:4,column:1},to:{row:4+Math.max(1,data.length),column:cols.length}};
+  return ws;
+}
+/* Gantt als Zellenraster, kalendertreu: jeder Kalendertag vom ersten bis letzten Einsatz.
+ * Einsatztage im 15-min-Raster, Tage ohne Einsatz als schmale schraffierte Spalte. */
+function addGanttSheet(wb, logoId, name, sched, stamp){
+  const p=S.params, SL=15, dates=ganttDates(sched), cal=calDays(dates), {ds,de}=ganttSpan(sched);
+  const nSl=Math.ceil((de-ds)/SL), FREE=4, FC=5;      // feste Spalten: Adresse/Objekt, Datum, Von, Bis, Min
+  const ls=toMin(p.lunchStart), le=toMin(p.lunchEnd);
+  const isLunch=m=>p.lunch && m>=ls && m<le;
+  const HATCH={type:"pattern",pattern:"lightUp",fgColor:{argb:"FFC9D2DB"},bgColor:{argb:"FFF5F7F9"}};
+  let col=FC+1; const blocks=cal.map(c=>{ const b={...c,c1:col,n:c.work?nSl:FREE}; col+=b.n; return b; });
+  const lastCol=col-1;
+  const ws=newSheet(wb,name,{xSplit:FC,ySplit:5});
+  ws.pageSetup.printTitlesRow="3:5";
+  const cols=[{width:38},{width:11},{width:6.5},{width:6.5},{width:7}];
+  for(let c=FC+1;c<=lastCol;c++) cols.push({width:1.6});
+  ws.columns=cols;
+  sheetHead(ws,logoId,"Inspektionsplan · Gantt",stamp+" · Raster "+SL+" min · "+cal.length+" Kalendertage",1);
+  ["Adresse / Objekt","Datum","Von","Bis","Min"].forEach((v,i)=>{ ws.getCell(5,i+1).value=v; });
+  const edge={style:"medium",color:{argb:XL_ACCENT}};
+  // KW-Zeile
+  let bi=0; for(const r of weekRuns(cal)){ const c1=blocks[bi].c1, c2=blocks[bi+r.n-1].c1+blocks[bi+r.n-1].n-1; if(c2>c1) ws.mergeCells(3,c1,3,c2); const c=ws.getCell(3,c1); c.value="KW "+r.w; c.font={size:9,color:{argb:"FF56636F"}}; c.border={left:edge}; bi+=r.n; }
+  for(const b of blocks){
+    const c2=b.c1+b.n-1, wd=wday(b.d);
+    ws.mergeCells(4,b.c1,4,c2);
+    const c=ws.getCell(4,b.c1); c.value=b.work? WD[wd]+" "+chDate(b.d) : WD[wd]+" "+b.d.slice(8)+".";
+    c.alignment={horizontal:"center",vertical:"middle",shrinkToFit:!b.work}; c.font={bold:b.work,size:b.work?10:8,color:{argb:b.work?"FF16202A":"FF56636F"}};
+    for(let s=0;s<b.n;s++){
+      const cc=ws.getCell(5,b.c1+s), m=ds+s*SL;
+      if(b.work && m%60===0) cc.value=String(m/60).padStart(2,"0");
+      cc.font={size:8,bold:true}; cc.fill=!b.work?HATCH:isLunch(m)?fill(XL_LUNCH):fill(XL_HEAD);
+      cc.border={bottom:edge,left:s===0?edge:undefined};
+      const c4=ws.getCell(4,b.c1+s); c4.fill=b.work?fill(XL_HEAD):HATCH; c4.border={left:s===0?edge:undefined};
+    }
+  }
+  for(let c=1;c<=FC;c++){ for(const r of [4,5]){ const cell=ws.getCell(r,c); cell.font={bold:true}; cell.fill=fill(XL_HEAD); if(r===5) cell.border={bottom:edge}; } }
+  ws.getRow(4).height=18; ws.getRow(5).height=14;
+  const paint=(rr,rowsIn,argbFn)=>{
+    for(const b of blocks){
+      for(let s=0;s<b.n;s++){
+        const cell=ws.getCell(rr,b.c1+s), m=ds+s*SL;
+        const bord={left:s===0?edge:(b.work&&m%60===0?{style:"hair",color:{argb:XL_LINE}}:undefined),bottom:{style:"hair",color:{argb:XL_LINE}}};
+        cell.border=bord;
+        if(!b.work){ cell.fill=HATCH; continue; }
+        const hit=rowsIn.find(r=>r.date===b.d && r.start<m+SL && r.end>m);
+        if(hit) cell.fill=fill(argbFn(hit)); else if(isLunch(m)) cell.fill=fill(XL_LUNCH);
+      }
+    }
+  };
+  let row=6;
+  for(const e of sched){ if(!e.b.include||!e.rows.length) continue;
+    const f=e.rows[0], l=e.rows[e.rows.length-1], R=ws.getRow(row);
+    R.values=[e.b.adresse, xlDate(f.date), hm(f.start), hm(l.end), e.rows.reduce((s,r)=>s+r.dur,0)];
+    R.font={bold:true}; R.getCell(2).numFmt="dd.mm.yyyy";
+    for(let c=1;c<=FC;c++) R.getCell(c).fill=fill(XL_HEAD);
+    paint(row,e.rows,()=>XL_SUM); row++;
+    for(const r of e.rows){
+      const Rr=ws.getRow(row);
+      const txt="   "+[r.floor,r.nr,r.lage,r.kat==="gross"||r.kat==="klein"?r.zimmer+" Zi.":r.objekt].filter(Boolean).join(" · ");
+      Rr.values=[txt, xlDate(r.date), hm(r.start), hm(r.end), r.dur]; Rr.getCell(2).numFmt="dd.mm.yyyy"; Rr.font={size:10};
+      paint(row,[r],x=>XL_KAT[x.kat]); row++;
+    }
+  }
+  row++;
+  ws.getRow(row).getCell(1).value="Legende"; ws.getRow(row).getCell(1).font={bold:true};
+  const items=[["Wohnung gross",fill(XL_KAT.gross)],["Wohnung klein",fill(XL_KAT.klein)],["Allgemeine Räume",fill(XL_KAT.allg)],["Treppenhaus",fill(XL_KAT.tr)],["Adresse gesamt",fill(XL_SUM)],["Mittagspause",fill(XL_LUNCH)],["Tag ohne Einsatz",HATCH]];
+  items.forEach(([t,f],i)=>{ const rr=ws.getRow(row+1+i); rr.getCell(2).fill=f; rr.getCell(3).value=t; });
+}
+async function exportXlsx(only){
+  if(typeof ExcelJS==="undefined"){ say("Excel-Bibliothek nicht geladen (Internetverbindung prüfen).","err"); return; }
+  const list=SCHED.map((e,i)=>({e,i})).filter(({e,i})=>e.b.include && e.rows.length && (!only||only.includes(i)));
+  if(!list.length){ say("Kein Terminplan zum Exportieren.","err"); return; }
+  const wb=new ExcelJS.Workbook(); wb.creator="Terradata AG"; wb.created=new Date();
+  const logoId = S.logo&&S.logo.png ? wb.addImage({base64:S.logo.png, extension:"png"}) : null;
+  const used=new Set(), stamp="Plan erstellt "+chDate(todayISO())+" · Arbeitszeit "+S.params.dayStart+"–"+S.params.dayEnd+(S.params.lunch?", Pause "+S.params.lunchStart+"–"+S.params.lunchEnd:"");
+  if(!only){
+    const oc=[["Adresse",40],["EGID",12],["Wohnungen",11],["Termine",9],["Inspektionszeit [min]",20],["Beginn",17],["Ende",17],["Einsatztage",28]];
+    const data=list.map(({e})=>{ const f=e.rows[0], l=e.rows[e.rows.length-1];
+      const ds=[...new Set(e.rows.map(r=>chDate(r.date)))].join(", ");
+      return [e.b.adresse,e.b.egid||"",e.b.units.length,e.rows.length,e.rows.reduce((s,r)=>s+r.dur,0),chDate(f.date)+" "+hm(f.start),chDate(l.date)+" "+hm(l.end),ds]; });
+    const wsO=addSheet(wb,logoId,sheetName("Übersicht",used),"Inspektionsplan · Übersicht",stamp,oc,data,null);
+    say("Erstelle Kartenbild für Excel …");
+    const mimg=await renderMapImage(1600,1000);
+    if(mimg){
+      const r0=4+data.length+3, cap=wsO.getCell(r0,1);
+      cap.value="Übersichtskarte"+(mimg.base?"":" (ohne Hintergrundkarte, geo.admin.ch nicht erreichbar)"); cap.font={bold:true,size:12};
+      const mid=wb.addImage({base64:mimg.b64, extension:"jpeg"});
+      wsO.addImage(mid,{tl:{col:0,row:r0},ext:{width:1000,height:625},editAs:"oneCell"});
+    }
+    const eb=blocksOf(SCHED).map(bk=>[S.params.sequential?"Tag "+(bk.dayIdx+1):"",xlDate(bk.date),WD[wday(bk.date)],HALF[bk.half],hm(bk.start),hm(bk.end),bk.adr.join("\n"),bk.rows.length,personsOf(bk).map(x=>x.name||x.email).join(", ")]);
+    const ews=addSheet(wb,logoId,sheetName("Einsätze",used),"Inspektionsplan · Halbtags-Einsätze",stamp,[["Einsatztag",10],["Datum",11],["Tag",5],["Halbtag",11],["Von",7],["Bis",7],["Adressen",40],["Termine",9],["Team",36]],eb,1);
+    ews.eachRow((r,i)=>{ if(i>4) r.getCell(7).alignment={wrapText:true,vertical:"middle"}; });
+    addGanttSheet(wb,logoId,sheetName("Gantt",used),SCHED,stamp);
+    const ar=allRows(SCHED).map((r,i)=>[i+1,"Tag "+(r.dayIdx+1),xlDate(r.date),WD[wday(r.date)],hm(r.start),hm(r.end),r.dur,r.b.adresse,r.floor,r.nr,r.lage,r.zimmer===""?"":r.zimmer,r.objekt,""]);
+    const ac=[...COLS.slice(0,7),["Adresse",34],...COLS.slice(7)];
+    addSheet(wb,logoId,sheetName("Alle Termine",used),"Inspektionsplan · Alle Termine",stamp,ac,ar,2);
+  }
+  for(const {e} of list){
+    const data=e.rows.map((r,i)=>[i+1,"Tag "+(r.dayIdx+1),xlDate(r.date),WD[wday(r.date)],hm(r.start),hm(r.end),r.dur,r.floor,r.nr,r.lage,r.zimmer===""?"":r.zimmer,r.objekt,""]);
+    addSheet(wb,logoId,sheetName(e.b.adresse,used),e.b.adresse,"EGID "+(e.b.egid||"–")+" · "+e.b.units.length+" Wohnungen · "+stamp,COLS,data,2);
+  }
+  const buf=await wb.xlsx.writeBuffer();
+  const name = only ? "Inspektionsplan_"+safe(shortAdr(list[0].e.b.adresse))+".xlsx" : "Inspektionsplan_"+todayISO()+".xlsx";
+  saveFile(name,new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
+}
+function exportJson(){
+  const p=S.params;
+  const data={ erstellt:new Date().toISOString(), quelle:S.source||null, parameter:p, einsatztage_uebersteuert:S.dayDates,
+    team:S.team.map(x=>({name:x.name,email:x.email})), organisator:S.org,
+    halbtage:blocksOf(SCHED).map(bk=>({datum:bk.date, halbtag:HALF[bk.half], von:hm(bk.start), bis:hm(bk.end), adressen:bk.adr, termine:bk.rows.length, team:personsOf(bk).map(x=>x.name||x.email)})),
+    adressen:SCHED.filter(e=>e.b.include).map(e=>({ adresse:e.b.adresse, egid:e.b.egid||null, geschosse:e.b.geschosse,
+      wohnungen:e.b.units.map(x=>({stockwerk:floorLabel(x.floor), wohnung:x.nr, lage:x.lage, zimmer:x.zimmer, dauer_min:unitDur(x,p)})),
+      termine:e.rows.map((r,i)=>({nr:i+1, einsatztag:r.dayIdx+1, datum:r.date, von:hm(r.start), bis:hm(r.end), dauer_min:r.dur, kategorie:r.kat, stockwerk:r.floor, wohnung:r.nr, lage:r.lage, zimmer:r.zimmer, objekt:r.objekt})) })) };
+  saveFile("Inspektionsplan_"+todayISO()+".json", JSON.stringify(data,null,2));
+}
+function safe(s){ return String(s).replace(/[^\wäöüÄÖÜ.-]+/g,"_"); }
+/* Minimales ZIP (ohne Kompression) für Dateitypen, die die Artifact-Ansicht nicht direkt speichern darf */
+const DL_OK=["gif","png","jpg","jpeg","webp","mp4","webm","txt","json","md","docx","pptx","epub","csv","ttf","html","svg","pdf","xlsx","zip"];
+const CRC_T=(()=>{ const t=new Uint32Array(256); for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c=c&1?0xEDB88320^(c>>>1):c>>>1; t[n]=c>>>0; } return t; })();
+function crc32(u8){ let c=0xFFFFFFFF; for(let i=0;i<u8.length;i++) c=CRC_T[(c^u8[i])&0xff]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
+function makeZip(files){
+  const enc=new TextEncoder(), d=new Date(), parts=[], cd=[]; let off=0;
+  const dt=((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate(), tm=(d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1);
+  for(const f of files){
+    const nm=enc.encode(f.name), data=f.data, crc=crc32(data);
+    const lh=new DataView(new ArrayBuffer(30));
+    [[0,0x04034b50,4],[4,20,2],[6,0x0800,2],[8,0,2],[10,tm,2],[12,dt,2],[14,crc,4],[18,data.length,4],[22,data.length,4],[26,nm.length,2],[28,0,2]].forEach(([o,v,s])=>s===4?lh.setUint32(o,v,true):lh.setUint16(o,v,true));
+    parts.push(new Uint8Array(lh.buffer),nm,data);
+    const ch=new DataView(new ArrayBuffer(46));
+    [[0,0x02014b50,4],[4,20,2],[6,20,2],[8,0x0800,2],[10,0,2],[12,tm,2],[14,dt,2],[16,crc,4],[20,data.length,4],[24,data.length,4],[28,nm.length,2],[30,0,2],[32,0,2],[34,0,2],[36,0,2],[38,0,4],[42,off,4]].forEach(([o,v,s])=>s===4?ch.setUint32(o,v,true):ch.setUint16(o,v,true));
+    cd.push(new Uint8Array(ch.buffer),nm);
+    off+=30+nm.length+data.length;
+  }
+  const cdSize=cd.reduce((s,x)=>s+x.length,0), end=new DataView(new ArrayBuffer(22));
+  [[0,0x06054b50,4],[4,0,2],[6,0,2],[8,files.length,2],[10,files.length,2],[12,cdSize,4],[16,off,4],[20,0,2]].forEach(([o,v,s])=>s===4?end.setUint32(o,v,true):end.setUint16(o,v,true));
+  return new Blob([...parts,...cd,new Uint8Array(end.buffer)],{type:"application/zip"});
+}
+const MIME={ics:"text/calendar;charset=utf-8",eml:"message/rfc822",json:"application/json",jpg:"image/jpeg",xlsx:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"};
+async function saveFile(name,data){
+  let dl=null;
+  try{ dl = window.claude?.use ? await window.claude.use("downloads") : null; }catch(_){}
+  const ext=name.split(".").pop().toLowerCase();
+  if(dl && !DL_OK.includes(ext)){
+    const u8 = data instanceof Blob ? new Uint8Array(await data.arrayBuffer()) : new TextEncoder().encode(String(data));
+    data=makeZip([{name,data:u8}]); name=name.replace(/\.[^.]+$/,"")+".zip";
+  }
+  if(dl){
+    try{ await dl.save({filename:name,data}); say(name+" gespeichert"+(name.endsWith(".zip")&&ext!=="zip"?" (in der Artifact-Ansicht als ZIP verpackt; lokal geöffnet kommt die Datei direkt)":"")+".","ok"); }
+    catch(err){ if(err&&err.code==="declined") say("Speichern abgebrochen."); else say("Speichern nicht möglich ("+(err&&err.code||"Fehler")+").","err"); }
+    return;
+  }
+  const blob = data instanceof Blob ? data : new Blob([data],{type:MIME[ext]||"application/octet-stream"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },500); say(name+" erstellt.","ok");
+}
+$("btnXlsx").onclick=()=>exportXlsx(null);
+$("btnJson").onclick=exportJson;
+
+$("baseSel").onchange=e=>{ tileErr=0; setBase(e.target.value); };
+$("btnFit").onclick=()=>{ if(MAP) fitMap(); };
+$("btnAddMap").onclick=()=>{ S.addMode=!S.addMode; $("btnAddMap").classList.toggle("on",S.addMode);
+  if(MAP) MAP.getContainer().classList.toggle("leaflet-crosshair",S.addMode);
+  say(S.addMode?"Auf ein Gebäude in der Karte klicken, um es hinzuzufügen. Nochmals «+ aus Karte» beendet den Modus.":""); };
+$("mlist").addEventListener("click",e=>{ const li=e.target.closest("li[data-goto]"); if(!li) return; S.active=+li.dataset.goto; render();
+  const b=S.buildings[S.active]; if(MAP&&b&&b.pt) MAP.setView(b.pt,Math.max(MAP.getZoom(),18)); });
+$("btnMapJpg").onclick=async()=>{ say("Erstelle Kartenbild …"); const m=await renderMapImage(1600,1000);
+  if(!m){ say("Keine Objekte mit Lage vorhanden.","err"); return; }
+  const bin=atob(m.b64), u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+  saveFile("Inspektionsplan_Karte_"+todayISO()+".jpg", new Blob([u8],{type:"image/jpeg"})); };
+["m_to","m_subj","m_body"].forEach(id=>$(id).addEventListener("input",updateMailto));
+$("m_eml").onclick=composeEml;
+$("m_ics").onclick=()=>{ const c=S.compose; if(c) saveIcsMany(c.bks, c.bks.length===1?icsName(c.bks[0]):"Inspektionen_"+c.bks[0].date+".ics"); };
+$("m_copy").onclick=()=>{ const txt="An: "+$("m_to").value+"\nBetreff: "+$("m_subj").value+"\n\n"+$("m_body").value;
+  const ok=()=>{ $("m_hint").textContent="Text in die Zwischenablage kopiert."; };
+  try{ navigator.clipboard.writeText(txt).then(ok,()=>{ $("m_body").select(); $("m_hint").textContent="Kopieren nicht erlaubt: Text ist markiert, mit Ctrl+C kopieren."; }); }
+  catch(_){ $("m_body").select(); } };
+$("mailDlg").addEventListener("close",()=>{ S.compose=null; });
+applyTheme(lsGet("ip_theme")||"light");
+renderLogo();
+render();
+</script>
+</body>
+</html>

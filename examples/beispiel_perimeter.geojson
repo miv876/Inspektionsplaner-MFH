@@ -1,0 +1,25 @@
+{
+  "type": "FeatureCollection",
+  "name": "offert_perimeter",
+  "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Polygon", "coordinates": [[[8.5995,47.4105],[8.5999,47.4105],[8.5999,47.4108],[8.5995,47.4108],[8.5995,47.4105]]] },
+      "properties": {
+        "objektTyp": "innenAussen", "objektLabel": "Gebäude innen und aussen",
+        "stil": { "linieFarbe": "#1565c0", "linieBreite_px": 3, "linienstil": "durchgezogen", "fuellung": true, "fuellFarbe": "#2196f3", "transparenz_prozent": 60 },
+        "attribute": { "gebaeude": { "Gebäudeadresse": "Beispielweg 4, 8304 Wallisellen", "Anzahl Geschosse": 4, "Anzahl Wohnungen": 7, "EGID": "" } }
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Polygon", "coordinates": [[[8.6002,47.4105],[8.6006,47.4105],[8.6006,47.4108],[8.6002,47.4108],[8.6002,47.4105]]] },
+      "properties": {
+        "objektTyp": "innenAussen", "objektLabel": "Gebäude innen und aussen",
+        "stil": { "linieFarbe": "#1565c0", "linieBreite_px": 3, "linienstil": "durchgezogen", "fuellung": true, "fuellFarbe": "#2196f3", "transparenz_prozent": 60 },
+        "attribute": { "gebaeude": { "Gebäudeadresse": "Beispielweg 6, 8304 Wallisellen", "Anzahl Geschosse": 3, "Anzahl Wohnungen": 4, "EGID": "" } }
+      }
+    }
+  ]
+}
