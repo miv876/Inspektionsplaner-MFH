@@ -11,6 +11,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pizzip@3.3.0/dist/pizzip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docxtemplater@3.71.1/build/docxtemplater.min.js"></script>
 <style>
 /* Layout: Kopfzeile mit Logo und Werkzeugen, links Parameter + Einsatztage, rechts Adress-Reiter mit Wohnungsliste und Terminplan */
 :root{
@@ -210,6 +212,39 @@ tr.go.off td{color:var(--muted)}
 .glab.h{height:38px;background:var(--sunken);cursor:default;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
 .glab.h:hover{color:var(--muted)}
 .tab.ov{font-weight:600}
+:root{--paper:#ffffff;--ink:#16202a}  /* Briefpapier: bewusst in beiden Themes weiss */
+label.f{display:grid;gap:3px;font-size:13px;color:var(--muted);min-width:0}
+.formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px 14px}
+.formgrid input,.formgrid select,.vcard input,.vcard textarea{border:1px solid var(--line);background:var(--sunken);border-radius:5px;padding:5px 7px;width:100%;min-width:0;color:var(--fg);font-size:14px}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px}
+.vcard{border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;gap:8px;align-content:start;min-width:0}
+.vhead{display:flex;gap:8px;align-items:center}
+.vk{flex:none;display:grid;place-items:center;width:28px;height:28px;border-radius:6px;background:var(--accent);color:var(--accent-fg);font:700 14px var(--f-display)}
+.vcard textarea{font:13px/1.45 var(--f-body);resize:vertical;min-height:180px}
+.vimg{min-height:40px}.vimg img{max-height:150px;max-width:100%;border:1px solid var(--line);border-radius:4px;display:block}
+.vcount{font-size:12px;color:var(--muted)}
+.phlist{display:flex;flex-wrap:wrap;gap:6px}
+.ph{font-family:var(--f-mono);font-size:12px;border:1px solid var(--line);background:var(--sunken);border-radius:4px;padding:2px 7px;cursor:pointer;color:var(--fg)}
+.ph:hover{border-color:var(--accent)}
+.vradio{display:flex;gap:8px}.vradio label{display:flex;gap:3px;align-items:center;font-size:13px;font-weight:600;cursor:pointer}
+.vradio input{width:auto}
+.plzort{display:flex;gap:4px}.plzort input.n{width:58px;flex:none}
+td input[type=checkbox],td input[type=radio]{width:auto}
+tr.muted td{opacity:.5}
+.vset{display:inline-flex;gap:4px;align-items:center;margin-left:auto;font-size:12px;color:var(--muted)}
+.sbtable td{padding:3px 6px}.sbtable td input{min-width:90px}
+.tplbox{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.code{font-family:var(--f-mono);font-size:12.5px;background:var(--sunken);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+#briefDlg{width:min(780px,calc(100vw - 32px))}
+.bphead{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.paper{background:var(--paper);color:var(--ink);border:1px solid var(--line);box-shadow:0 2px 10px rgba(0,0,0,.18);padding:36px 40px 40px 48px;font:12.5px/1.45 Arial,Helvetica,sans-serif;max-width:100%;min-height:600px}
+.paper p{margin:0 0 10px}
+.paper .plogo{float:right;height:42px;width:auto}
+.paper .pabs{font-size:10px;color:#56636f;margin:44px 0 10px;clear:both}
+.paper .pemp{margin:0 0 34px 50%;min-height:80px}
+.paper .ptext{white-space:pre-wrap}
+.paper .pimg{display:block;max-width:100%;margin:6px 0 12px}
+.paper .pnote{font-size:11px;color:#8f6200;background:#fbf1d8;padding:4px 8px;border-radius:4px;margin-bottom:12px}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .acts{display:flex;gap:4px;white-space:nowrap}
 .chips{display:flex;flex-wrap:wrap;gap:4px}
@@ -240,7 +275,7 @@ dialog textarea{font-family:var(--f-mono);font-size:12.5px;line-height:1.45;resi
   <div class="actions">
     <label class="toggle" title="Beispieladressen ein- oder ausblenden"><input type="checkbox" id="samples"> Beispieldaten</label>
     <button class="btn" id="btnNew" type="button">+ Adresse</button>
-    <button class="btn" id="btnImport" type="button">GeoJSON laden</button>
+    <button class="btn" id="btnImport" type="button" title="GeoJSON aus dem Perimeter-Tool, Projekt- oder Empfänger-JSON laden">Import</button>
     <button class="btn" id="btnGwr" type="button" title="Wohnungen aller Adressen aus dem GWR (geo.admin.ch) laden">GWR-Wohnungen</button>
     <span class="sep"></span>
     <button class="btn" id="btnLogo" type="button" title="Logo (SVG, PNG, JPG) für App und Excel laden">Logo …</button>
@@ -248,11 +283,14 @@ dialog textarea{font-family:var(--f-mono);font-size:12.5px;line-height:1.45;resi
     <select class="theme" id="theme" aria-label="Darstellung"><option value="light">Hell</option><option value="dark">Dunkel</option><option value="system">System</option></select>
     <span class="sep"></span>
     <button class="btn primary" id="btnXlsx" type="button">Excel exportieren</button>
-    <button class="btn" id="btnJson" type="button">JSON</button>
+    <button class="btn" id="btnJson" type="button" title="Ganzes Projekt inkl. Empfänger und Briefvorlagen speichern; mit «Import» wieder laden">Projekt (JSON)</button>
   </div>
   <div id="msg" role="status"></div>
   <input type="file" id="file" accept=".geojson,.json,application/geo+json,application/json">
   <input type="file" id="logoFile" accept="image/svg+xml,image/png,image/jpeg">
+  <input type="file" id="empfFile" accept=".json,.xlsx,.csv,application/json,text/csv">
+  <input type="file" id="tplFile" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+  <input type="file" id="varImgFile" accept="image/png,image/jpeg,image/svg+xml,image/webp">
 </header>
 
 <div class="layout">
@@ -271,6 +309,14 @@ dialog textarea{font-family:var(--f-mono);font-size:12.5px;line-height:1.45;resi
     <ol class="mlist" id="mlist"></ol>
   </aside>
 </div>
+
+<dialog id="briefDlg" aria-labelledby="bp_title">
+  <form method="dialog" style="display:grid;gap:12px">
+    <div class="bphead"><h2 id="bp_title">Briefvorschau</h2>
+      <span class="acts"><button type="button" class="btn sm" id="bp_prev">‹ Vorheriger</button><button type="button" class="btn sm" id="bp_next">Nächster ›</button><button type="submit" class="btn sm ghost" value="close">Schliessen</button></span></div>
+    <div class="paper" id="bp_paper"></div>
+  </form>
+</dialog>
 
 <dialog id="mailDlg" aria-labelledby="m_title">
   <form method="dialog" id="mailForm">
@@ -385,7 +431,7 @@ function itemsFor(b,p){
   if(p.order==="down") units.reverse();
   for(const un of units){
     const k=unitKat(un,p);
-    items.push({kat:k, floor:floorLabel(un.floor), nr:un.nr, lage:un.lage, zimmer:un.zimmer, objekt:KAT[k].label+" inkl. Keller", dur:unitDur(un,p)});
+    items.push({kat:k, floor:floorLabel(un.floor), nr:un.nr, lage:un.lage, zimmer:un.zimmer, objekt:KAT[k].label+" inkl. Keller", dur:unitDur(un,p), u:un});
   }
   const st={kat:"tr", floor:(b.geschosse||0)+" Geschosse", nr:"", lage:"", zimmer:"", objekt:"Treppenhaus", dur:stairDur(b,p)};
   if(st.dur>0){ if(p.stairPos==="start") items.unshift(st); else items.push(st); }
@@ -536,10 +582,13 @@ function gwrAddress(a){
 function applyGWR(b,a){
   if(!b.pt && a.gkode && a.gkodn) b.pt=lv95ToWgs(Number(a.gkode),Number(a.gkodn));
   const ew=a.ewid||[], units=[];
+  const oldBrief=new Map(); for(const x of b.units||[]){ if(x.brief){ if(x.ewid) oldBrief.set("e"+x.ewid,x.brief); oldBrief.set("n"+nrm(x.nr),x.brief); } }
   ew.forEach((_,i)=>{
     if(a.wabbj && a.wabbj[i]) return;
-    units.push({floor:wstwkToFloor(a.wstwk&&a.wstwk[i]), nr:(a.whgnr&&a.whgnr[i])||("EWID "+ew[i]), lage:(a.wbez&&a.wbez[i])||"",
-      zimmer:(a.wazim&&a.wazim[i])??"", flaeche:(a.warea&&a.warea[i])??"", dur:null});
+    const nr=(a.whgnr&&a.whgnr[i])||("EWID "+ew[i]);
+    units.push({floor:wstwkToFloor(a.wstwk&&a.wstwk[i]), nr, ewid:ew[i], lage:(a.wbez&&a.wbez[i])||"",
+      zimmer:(a.wazim&&a.wazim[i])??"", flaeche:(a.warea&&a.warea[i])??"", dur:null,
+      brief:oldBrief.get("e"+ew[i])||oldBrief.get("n"+nrm(nr))});
   });
   if(a.gastw) b.geschosse=a.gastw;
   if(units.length){ b.units=units; b.gwr="GWR"; b.include=true; } else b.gwr="GWR ohne Wohnungen";
@@ -755,6 +804,375 @@ function einsaetzeHTML(sched){
     <p class="hint">VM = vor, NM = nach der Mittagspause. Team-Chips anklicken, um Personen einem Halbtag zuzuteilen oder zu entfernen.</p></div>`;
 }
 
+/* ---------- Serienbrief ----------
+ * Empfänger liegen je Wohnung (un.brief). Versionen A/B/C liefern Betreff, Textbaustein und Bild.
+ * Word: docxtemplater füllt die Vorlage (eigene .docx oder eingebaute Standardvorlage). Für den
+ * Serienbrief wird der Vorlagenkörper automatisch in {#briefe}…{/briefe} mit Seitenumbruch gefasst. */
+const WD_LONG=["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
+const VKEYS=["A","B","C"];
+const ANREDEN=["","Frau","Herr","Familie","Firma"];
+const DOCX_MIME="application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const PLATZHALTER=[["empfaenger","Adressblock, mehrzeilig"],["absender","Absenderzeile"],["ort_datum","Ort, Datum"],["betreff","Betreff der Version"],["briefanrede","z. B. Sehr geehrte Frau Muster"],["text","Textbaustein der Version"],
+  ["adresse","Liegenschaft, ganze Adresse"],["liegenschaft","Strasse und Nr."],["wohnung","Wohnungsnummer"],["stockwerk","z. B. 2. OG"],["lage","z. B. links"],["zimmer","Zimmerzahl"],
+  ["termin_wochentag","z. B. Montag"],["termin_datum","TT.MM.JJJJ"],["termin_von","Beginn"],["termin_bis","Ende"],["termin_fenster","Zeitfenster als Satzteil"],["dauer","Minuten"],
+  ["anrede","Frau, Herr, Familie, Firma"],["vorname",""],["name",""],["zusatz","c/o"],["post_strasse","Postadresse"],["post_plzort","PLZ Ort"],
+  ["abs_firma","Absender Firma"],["abs_zeile2",""],["abs_zeile3",""],["unterzeichner",""],["funktion",""],["version","A, B oder C"]];
+const MERGE_COLS=["liegenschaft","adresse","wohnung","stockwerk","lage","zimmer","anrede","vorname","name","zusatz","post_strasse","post_plzort","empfaenger","briefanrede","version","betreff","text","termin_wochentag","termin_datum","termin_von","termin_bis","termin_fenster","dauer","ort_datum"];
+const BRIEF_DEFAULT={ def:"A", fenster:"genau", tpl:null,
+  absender:{firma:"Terradata AG", zeile2:"", zeile3:"", ort:"", unterzeichner:"", funktion:""},
+  variants:{
+    A:{label:"Ankündigung", imgW:12, img:null,
+       betreff:"Zustandsaufnahme Ihrer Wohnung am {termin_wochentag}, {termin_datum}",
+       text:"Im Auftrag der Bauherrschaft erstellen wir eine Zustandsaufnahme der Liegenschaft {adresse}. Dabei halten wir bestehende Risse und Schäden fotografisch und schriftlich fest.\n\nIhre Wohnung {wohnung} ({stockwerk}) besuchen wir am {termin_wochentag}, {termin_datum}, {termin_fenster}. Die Aufnahme dauert rund {dauer} Minuten und umfasst alle Räume inklusive Keller.\n\nBitte sorgen Sie dafür, dass Wände und Decken möglichst frei zugänglich sind. Passt Ihnen der Termin nicht, melden Sie sich bitte frühzeitig bei uns."},
+    B:{label:"Ankündigung mit Schlüssel", imgW:12, img:null,
+       betreff:"Zustandsaufnahme Ihrer Wohnung am {termin_wochentag}, {termin_datum}",
+       text:"Im Auftrag der Bauherrschaft erstellen wir eine Zustandsaufnahme der Liegenschaft {adresse}.\n\nIhre Wohnung {wohnung} ({stockwerk}) besuchen wir am {termin_wochentag}, {termin_datum}, {termin_fenster}. Die Aufnahme dauert rund {dauer} Minuten.\n\nSind Sie zu diesem Zeitpunkt nicht zu Hause, hinterlegen Sie bitte den Wohnungsschlüssel bei der Verwaltung oder einer Vertrauensperson und teilen Sie uns dies kurz mit."},
+    C:{label:"Ersatztermin", imgW:12, img:null,
+       betreff:"Neuer Termin für die Zustandsaufnahme am {termin_datum}",
+       text:"Beim ersten Termin konnten wir Ihre Wohnung {wohnung} an der {liegenschaft} leider nicht aufnehmen. Wir schlagen Ihnen deshalb folgenden neuen Termin vor:\n\n{termin_wochentag}, {termin_datum}, {termin_fenster}\n\nPasst Ihnen dieser Termin nicht, melden Sie sich bitte bei uns."}
+  }};
+function mergeBriefe(x){
+  const d=structuredClone(BRIEF_DEFAULT); if(!x) return d;
+  return {...d,...x, absender:{...d.absender,...(x.absender||{})}, variants:Object.fromEntries(VKEYS.map(k=>[k,{...d.variants[k],...((x.variants||{})[k]||{})}]))};
+}
+S.briefe=mergeBriefe(null);
+try{ const x=lsGet("ip_briefe"); if(x) S.briefe=mergeBriefe(JSON.parse(x)); }catch(_){}
+function saveBriefe(){ try{ localStorage.setItem("ip_briefe",JSON.stringify(S.briefe)); }catch(_){ say("Briefvorlagen sind zu gross für den Browserspeicher. Mit «Projekt (JSON)» sichern.","err"); } }
+
+const nrm=s=>String(s??"").toLowerCase().replace(/ß/g,"ss").replace(/\s+/g,"");
+function br(un){ if(!un.brief) un.brief={on:true,var:"",anrede:"",vorname:"",name:"",zusatz:"",strasse:"",plz:"",ort:""}; return un.brief; }
+const varOf=un=>br(un).var||S.briefe.def;
+function briefUnits(){ const out=[]; S.buildings.forEach((b,bi)=>{ if(!b.include) return; b.units.forEach((un,ui)=>out.push({b,bi,un,ui})); }); return out; }
+let TM=null;
+function termOf(un){ if(!TM){ TM=new Map(); for(const e of SCHED) for(const r of e.rows) if(r.u) TM.set(r.u,r); } return TM.get(un); }
+function splitAdr(a){ a=String(a||""); const i=a.lastIndexOf(","); return i<0?[a.trim(),""]:[a.slice(0,i).trim(),a.slice(i+1).trim()]; }
+function fensterText(r){
+  const p=S.params, f=S.briefe.fenster, ds=toMin(p.dayStart), de=toMin(p.dayEnd);
+  if(f==="halbtag"){ const vm=halfOf(r)==="VM", split=p.lunch?toMin(p.lunchStart):720, back=p.lunch?toMin(p.lunchEnd):720;
+    return (vm?"am Vormittag zwischen ":"am Nachmittag zwischen ")+hm(vm?ds:back)+" und "+hm(vm?split:de)+" Uhr"; }
+  const d=f==="15"?15:f==="30"?30:0;
+  if(!d) return "von "+hm(r.start)+" bis "+hm(r.end)+" Uhr";
+  const a=Math.max(ds,Math.floor((r.start-d)/5)*5), b=Math.min(de,Math.ceil((r.end+d)/5)*5);
+  return "zwischen "+hm(a)+" und "+hm(b)+" Uhr";
+}
+const fillPh=(s,f)=>String(s||"").replace(/\{(\w+)\}/g,(m,k)=>k in f? String(f[k]) : m);
+/* Alle Felder eines Briefs (Platzhalter für Vorlage, Vorschau und Seriendruck-Daten) */
+function letterFields(b,un){
+  const r=termOf(un), x=br(un), A=S.briefe.absender, key=varOf(un), V=S.briefe.variants[key];
+  const [st,po]=splitAdr(b.adresse), nm=[x.vorname,x.name].filter(Boolean).join(" ");
+  const f={ adresse:b.adresse, liegenschaft:shortAdr(b.adresse), wohnung:String(un.nr??""), stockwerk:floorLabel(un.floor), lage:un.lage||"", zimmer:un.zimmer===""||un.zimmer==null?"":String(un.zimmer),
+    termin_wochentag:r?WD_LONG[wday(r.date)]:"", termin_datum:r?chDate(r.date):"", termin_von:r?hm(r.start):"", termin_bis:r?hm(r.end):"", termin_fenster:r?fensterText(r):"",
+    dauer:String(r?r.dur:unitDur(un,S.params)), anrede:x.anrede, vorname:x.vorname, name:x.name, zusatz:x.zusatz,
+    post_strasse:x.strasse||st, post_plzort:[x.plz,x.ort].filter(Boolean).join(" ")||po,
+    abs_firma:A.firma, abs_zeile2:A.zeile2, abs_zeile3:A.zeile3, firma:A.firma, unterzeichner:A.unterzeichner, funktion:A.funktion,
+    absender:[A.firma,A.zeile2,A.zeile3].filter(Boolean).join(" · "),
+    ort_datum:[A.ort, chDate(todayISO())].filter(Boolean).join(", "), version:key };
+  f.briefanrede = x.anrede==="Frau"&&x.name ? "Sehr geehrte Frau "+x.name
+    : x.anrede==="Herr"&&x.name ? "Sehr geehrter Herr "+x.name
+    : x.anrede==="Familie"&&x.name ? "Sehr geehrte Familie "+x.name
+    : x.anrede!=="Firma"&&nm ? "Guten Tag "+nm : "Sehr geehrte Damen und Herren";
+  const L=[];
+  if(x.anrede==="Firma"){ if(x.name) L.push(x.name); if(x.vorname) L.push(x.vorname); }
+  else if(nm){ if(x.anrede) L.push(x.anrede); L.push(nm); }
+  else { L.push("An die Bewohnerinnen und Bewohner"); L.push("Wohnung "+f.wohnung+" ("+f.stockwerk+")"); }
+  if(x.zusatz) L.push(x.zusatz);
+  L.push(f.post_strasse); if(f.post_plzort) L.push(f.post_plzort);
+  f.empfaenger=L.join("\n");
+  f.betreff=fillPh(V.betreff,f); f.text=fillPh(V.text,f);
+  for(const k of VKEYS) f["var"+k]=key===k;
+  f.hatTermin=!!r;
+  return f;
+}
+function selectedLetters(){ return briefUnits().filter(x=>br(x.un).on).map(x=>({...x,f:letterFields(x.b,x.un)})); }
+
+/* ---- Word (docxtemplater) ---- */
+const b64bytes=s=>{ const b=atob(s); const u8=new Uint8Array(b.length); for(let i=0;i<b.length;i++) u8[i]=b.charCodeAt(i); return u8; };
+const bytesB64=u8=>{ let s=""; for(let i=0;i<u8.length;i+=8192) s+=String.fromCharCode(...u8.subarray(i,i+8192)); return btoa(s); };
+const xesc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const W_NS='xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';
+function wP(text,o={}){
+  const pPr=`<w:pPr><w:spacing w:after="${o.after||0}"/>${o.ind?`<w:ind w:left="${o.ind}"/>`:""}${o.align?`<w:jc w:val="${o.align}"/>`:""}</w:pPr>`;
+  const rPr=(o.b||o.sz||o.color)?`<w:rPr>${o.b?"<w:b/>":""}${o.color?`<w:color w:val="${o.color}"/>`:""}${o.sz?`<w:sz w:val="${o.sz}"/><w:szCs w:val="${o.sz}"/>`:""}</w:rPr>`:"";
+  return `<w:p>${pPr}${text?`<w:r>${rPr}<w:t xml:space="preserve">${xesc(text)}</w:t></w:r>`:""}</w:p>`;
+}
+function wImg(rid,cx,cy,id,name,align){
+  return `<w:p><w:pPr><w:spacing w:after="160"/>${align?`<w:jc w:val="${align}"/>`:""}</w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${id}" name="${name}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${id}" name="${name}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+}
+/* Eingebaute Standardvorlage: A4, Adressfeld rechts (Fenstercouvert), Logo, Bilder der Versionen in {#varX}…{/varX} */
+function buildDefaultTemplate(){
+  const enc=new TextEncoder(), V=S.briefe.variants, media=[], X='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+  const rels=['<Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'];
+  const addImg=(rid,bytes)=>{ rels.push(`<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${rid}.png"/>`); media.push({name:`word/media/${rid}.png`,data:bytes}); };
+  let body="", id=1;
+  if(S.logo&&S.logo.png){ addImg("rIdLogo",b64bytes(S.logo.png)); const hh=Math.round(1.4*360000); body+=wImg("rIdLogo",Math.round(hh*S.logo.w/S.logo.h),hh,id++,"Logo","right"); }
+  body+=wP("{absender}",{sz:15,color:"56636F",after:120,ind:5670});
+  body+=wP("{empfaenger}",{ind:5670,after:900});
+  body+=wP("{ort_datum}",{after:480});
+  body+=wP("{betreff}",{b:true,after:360});
+  body+=wP("{briefanrede}",{after:240});
+  body+=wP("{text}",{after:300});
+  for(const k of VKEYS){ const v=V[k]; if(!v.img) continue;
+    addImg("rIdImg"+k,b64bytes(v.img.src.split(",")[1]));
+    const cx=Math.round((v.imgW||12)*360000), cy=Math.round(cx*v.img.h/v.img.w);
+    body+=wP(`{#var${k}}`)+wImg("rIdImg"+k,cx,cy,id++,"Bild "+k,null)+wP(`{/var${k}}`); }
+  body+=wP("Freundliche Grüsse",{after:240})+wP("{abs_firma}",{after:720})+wP("{unterzeichner}")+wP("{funktion}");
+  const sect='<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1418" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr>';
+  const files=[
+    {name:"[Content_Types].xml",data:enc.encode(X+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>')},
+    {name:"_rels/.rels",data:enc.encode(X+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>')},
+    {name:"word/document.xml",data:enc.encode(X+`<w:document ${W_NS}><w:body>${body}${sect}</w:body></w:document>`)},
+    {name:"word/styles.xml",data:enc.encode(X+'<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="21"/><w:szCs w:val="21"/><w:lang w:val="de-CH"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="276" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Standard"><w:name w:val="Normal"/></w:style></w:styles>')},
+    {name:"word/_rels/document.xml.rels",data:enc.encode(X+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+rels.join("")+'</Relationships>')},
+    ...media];
+  return makeZip(files);
+}
+async function templateBytes(){ return S.briefe.tpl ? b64bytes(S.briefe.tpl.b64) : new Uint8Array(await buildDefaultTemplate().arrayBuffer()); }
+const DocxT=()=> (typeof window!=="undefined"&&window.docxtemplater) || globalThis.docxtemplater;
+function libsOk(){ if(typeof PizZip==="undefined"||!DocxT()){ say("Word-Bibliothek nicht geladen (Internetverbindung prüfen).","err"); return false; } return true; }
+/* Vorlagenkörper in {#briefe}…{/briefe} fassen, Seitenumbruch zwischen den Briefen */
+function wrapLoop(zip){
+  let x=zip.file("word/document.xml").asText();
+  const i=x.indexOf(">",x.indexOf("<w:body"))+1; let j=x.lastIndexOf("<w:sectPr"); if(j<i) j=x.lastIndexOf("</w:body>");
+  const P=t=>`<w:p><w:r><w:t xml:space="preserve">${t}</w:t></w:r></w:p>`;
+  const brk='<w:p><w:r><w:t>{#mehr}</w:t></w:r><w:r><w:br w:type="page"/></w:r><w:r><w:t>{/mehr}</w:t></w:r></w:p>';
+  zip.file("word/document.xml", x.slice(0,i)+P("{#briefe}")+x.slice(i,j)+brk+P("{/briefe}")+x.slice(j));
+}
+function renderDocx(bytes,data,loop){
+  const zip=new PizZip(bytes); if(loop) wrapLoop(zip);
+  const D=DocxT(); const doc=new D(zip,{paragraphLoop:true,linebreaks:true,nullGetter:()=>""});
+  doc.render(data); return doc.getZip();
+}
+function docxErr(e){ const er=e&&e.properties&&e.properties.errors; return er&&er.length? er.map(x=>(x.properties&&x.properties.explanation)||x.message).slice(0,4).join("; ") : (e&&e.message)||String(e); }
+async function genSerienbrief(){
+  if(!libsOk()) return; const L=selectedLetters(); if(!L.length){ say("Keine Briefe ausgewählt.","err"); return; }
+  try{
+    const z=renderDocx(await templateBytes(),{briefe:L.map((x,i)=>({...x.f,mehr:i<L.length-1}))},true);
+    await saveFile("Serienbrief_"+todayISO()+".docx", z.generate({type:"blob",mimeType:DOCX_MIME,compression:"DEFLATE"}));
+    const noT=L.filter(x=>!x.f.hatTermin).length; if(noT) say(L.length+" Briefe erstellt; "+noT+" davon ohne Termin, die Terminfelder sind dort leer.","err");
+  }catch(e){ say("Word-Erzeugung fehlgeschlagen: "+docxErr(e),"err"); }
+}
+async function genEinzel(){
+  if(!libsOk()) return; const L=selectedLetters(); if(!L.length){ say("Keine Briefe ausgewählt.","err"); return; }
+  try{
+    const bytes=await templateBytes(), used=new Set(), files=[];
+    for(const x of L){ let n="Brief_"+safe(x.f.liegenschaft)+"_"+safe(x.f.wohnung||"Whg"), k=n, i=2; while(used.has(k)) k=n+"_"+i++; used.add(k);
+      files.push({name:k+".docx", data:renderDocx(bytes,x.f,false).generate({type:"uint8array",compression:"DEFLATE"})}); }
+    await saveFile("Einzelbriefe_"+todayISO()+".zip", makeZip(files));
+  }catch(e){ say("Word-Erzeugung fehlgeschlagen: "+docxErr(e),"err"); }
+}
+async function genMergeXlsx(){
+  if(typeof ExcelJS==="undefined"){ say("Excel-Bibliothek nicht geladen.","err"); return; }
+  const L=selectedLetters(); if(!L.length){ say("Keine Briefe ausgewählt.","err"); return; }
+  const wb=new ExcelJS.Workbook(), ws=wb.addWorksheet("Serienbrief");
+  ws.columns=MERGE_COLS.map(k=>({header:k,key:k,width:k==="text"?60:k==="empfaenger"?34:16}));
+  for(const x of L) ws.addRow(Object.fromEntries(MERGE_COLS.map(k=>[k,x.f[k]??""])));
+  ws.getRow(1).font={bold:true}; ws.views=[{state:"frozen",ySplit:1}];
+  ws.eachRow((r,i)=>{ if(i>1) r.alignment={wrapText:true,vertical:"top"}; });
+  saveFile("Seriendruck-Daten_"+todayISO()+".xlsx", new Blob([await wb.xlsx.writeBuffer()],{type:MIME.xlsx}));
+}
+/* Eigene Vorlage prüfen und übernehmen */
+function tplTags(bytes){ const zip=new PizZip(bytes); const x=(zip.file("word/document.xml")||{asText:()=>""}).asText().replace(/<[^>]+>/g,""); return [...new Set([...x.matchAll(/\{([#/^]?)(\w+)\}/g)].map(m=>m[2]))]; }
+const KNOWN_TAGS=new Set([...PLATZHALTER.map(x=>x[0]),"varA","varB","varC","hatTermin","briefe","mehr"]);
+function loadTemplate(file){
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{
+      const bytes=new Uint8Array(rd.result);
+      if(!libsOk()) return;
+      renderDocx(bytes,{},true);                       // wirft bei fehlerhaften Platzhaltern
+      const tags=tplTags(bytes), unk=tags.filter(t=>!KNOWN_TAGS.has(t));
+      S.briefe.tpl={name:file.name, b64:bytesB64(bytes), tags}; saveBriefe(); render();
+      say("Vorlage «"+file.name+"» übernommen ("+tags.length+" Platzhalter)"+(unk.length?". Unbekannt und leer im Brief: "+unk.map(t=>"{"+t+"}").join(", "):"")+".", unk.length?"err":"ok");
+    }catch(e){ say("Vorlage nicht verwendbar: "+docxErr(e),"err"); }
+  };
+  rd.readAsArrayBuffer(file);
+}
+function loadVarImg(file,k){
+  const rd=new FileReader();
+  rd.onload=()=>{ const img=new Image();
+    img.onload=()=>{ const s=Math.min(1,1600/(img.naturalWidth||1600)), w=Math.round((img.naturalWidth||1600)*s), h=Math.round((img.naturalHeight||1000)*s);
+      const c=document.createElement("canvas"); c.width=w; c.height=h; const g=c.getContext("2d"); g.fillStyle="#fff"; g.fillRect(0,0,w,h); g.drawImage(img,0,0,w,h);
+      S.briefe.variants[k].img={src:c.toDataURL("image/png"),w,h,name:file.name}; saveBriefe(); render(); say("Bild für Version "+k+" übernommen.","ok"); };
+    img.onerror=()=>say("Bild konnte nicht gelesen werden.","err"); img.src=rd.result; };
+  rd.readAsDataURL(file);
+}
+
+/* ---- Empfänger: Import / Export ---- */
+const ALIAS={egid:["egid"],ewid:["ewid"],adresse:["adresse","liegenschaft","gebäudeadresse","gebaeudeadresse","objekt","objektadresse"],
+  wohnung:["wohnung","whg","wohnungsnummer","wohnungsnr","whgnr","whg-nr","whg nr"],anrede:["anrede"],vorname:["vorname"],name:["name","nachname","mieter","mieterin","eigentümer","eigentuemer","firma"],
+  zusatz:["zusatz","c/o","co","adresszusatz"],strasse:["strasse","straße","postadresse","post_strasse"],plz:["plz"],ort:["ort","wohnort"],version:["version","variante","briefversion"],brief:["brief","serienbrief","senden"]};
+function normKey(hd){ const s=String(hd??"").trim().toLowerCase(); for(const [k,al] of Object.entries(ALIAS)) if(k===s||al.includes(s)) return k; return null; }
+const cellVal=v=> v&&typeof v==="object" ? (v.text??v.result??(v.richText?v.richText.map(t=>t.text).join(""):(v instanceof Date?chDate(v.toISOString().slice(0,10)):String(v)))) : v;
+function applyEmpf(records){
+  let ok=0; const miss=[];
+  for(const r0 of records||[]){
+    const r={}; for(const [k,v] of Object.entries(r0||{})){ const nk=normKey(k); if(nk && v!=null && String(v).trim()!=="") r[nk]=cellVal(v); }
+    let b=null;
+    if(r.egid) b=S.buildings.find(x=>String(x.egid)===String(r.egid).trim());
+    if(!b && r.adresse){ const a=nrm(shortAdr(r.adresse)); b=S.buildings.find(x=>nrm(shortAdr(x.adresse))===a); }
+    if(!b && !r.adresse && !r.egid && S.buildings.length===1) b=S.buildings[0];
+    const un = b && ((r.ewid && b.units.find(x=>String(x.ewid)===String(r.ewid))) || (r.wohnung!=null && b.units.find(x=>nrm(x.nr)===nrm(r.wohnung))));
+    if(!un){ miss.push((r.adresse?shortAdr(r.adresse):(r.egid||"?"))+" / "+(r.wohnung||r.ewid||"?")); continue; }
+    const x=br(un);
+    for(const f of ["anrede","vorname","name","zusatz","strasse","plz","ort"]) if(r[f]!=null) x[f]=String(r[f]).trim();
+    if(x.anrede && !ANREDEN.includes(x.anrede)){ const a=x.anrede.toLowerCase(); x.anrede=a.startsWith("fr")?"Frau":a.startsWith("he")?"Herr":a.startsWith("fam")?"Familie":a.startsWith("fi")?"Firma":""; }
+    if(r.version){ const v=String(r.version).trim().toUpperCase().slice(-1); if(VKEYS.includes(v)) x.var=v; }
+    if(r.brief!=null) x.on=!/^(0|nein|false|no|n|x)$/i.test(String(r.brief).trim());
+    ok++;
+  }
+  return {ok,miss};
+}
+function sayEmpf(r){ say(r.ok+" Empfänger übernommen"+(r.miss.length?"; keine passende Wohnung für "+r.miss.length+": "+r.miss.slice(0,5).join(", ")+(r.miss.length>5?" …":""):"")+".", r.miss.length?"err":"ok"); }
+async function parseXlsxRecords(buf){
+  const wb=new ExcelJS.Workbook(); await wb.xlsx.load(buf); const ws=wb.worksheets[0]; let hdr=null; const recs=[];
+  ws.eachRow(row=>{ const vals=[]; row.eachCell({includeEmpty:true},(c,ci)=>{ vals[ci-1]=cellVal(c.value); });
+    if(!hdr){ if(vals.some(v=>["wohnung","ewid"].includes(normKey(v)))) hdr=vals; return; }
+    const o={}; hdr.forEach((k,i)=>{ if(k!=null&&k!=="") o[k]=vals[i]; }); if(Object.values(o).some(v=>v!=null&&v!=="")) recs.push(o); });
+  return recs;
+}
+function parseCsvRecords(txt){
+  txt=txt.replace(/^﻿/,""); const first=txt.split(/\r?\n/)[0]||"", d=(first.match(/;/g)||[]).length>=(first.match(/,/g)||[]).length?";":",";
+  const rows=[]; let row=[],cell="",q=false;
+  for(let i=0;i<txt.length;i++){ const c=txt[i];
+    if(q){ if(c==='"'){ if(txt[i+1]==='"'){ cell+='"'; i++; } else q=false; } else cell+=c; }
+    else if(c==='"') q=true; else if(c===d){ row.push(cell); cell=""; } else if(c==="\n"){ row.push(cell); rows.push(row); row=[]; cell=""; } else if(c!=="\r") cell+=c; }
+  if(cell||row.length){ row.push(cell); rows.push(row); }
+  const hi=rows.findIndex(r=>r.some(v=>["wohnung","ewid"].includes(normKey(v)))); if(hi<0) return [];
+  const hd=rows[hi]; return rows.slice(hi+1).map(r=>Object.fromEntries(hd.map((k,i)=>[k,r[i]]))).filter(o=>Object.values(o).some(v=>v));
+}
+function importEmpfFile(file){
+  const ext=file.name.split(".").pop().toLowerCase(), rd=new FileReader();
+  rd.onload=async()=>{
+    try{
+      let recs;
+      if(ext==="xlsx"){ if(typeof ExcelJS==="undefined") throw new Error("Excel-Bibliothek nicht geladen"); recs=await parseXlsxRecords(rd.result); }
+      else if(ext==="csv") recs=parseCsvRecords(rd.result);
+      else { const j=JSON.parse(rd.result); recs=Array.isArray(j)?j:(j.empfaenger||[]); }
+      if(!recs.length) throw new Error("keine Zeilen mit einer Spalte «Wohnung» oder «EWID» gefunden");
+      sayEmpf(applyEmpf(recs)); render();
+    }catch(e){ say("Empfänger-Import fehlgeschlagen: "+(e.message||e),"err"); }
+  };
+  if(ext==="xlsx") rd.readAsArrayBuffer(file); else rd.readAsText(file);
+}
+function exportEmpf(){
+  const list=[]; for(const b of S.buildings) for(const un of b.units){ const x=br(un);
+    list.push({adresse:b.adresse, egid:b.egid||"", ewid:un.ewid||"", wohnung:un.nr, stockwerk:floorLabel(un.floor), lage:un.lage||"",
+      anrede:x.anrede, vorname:x.vorname, name:x.name, zusatz:x.zusatz, strasse:x.strasse, plz:x.plz, ort:x.ort, version:x.var||"", brief:x.on}); }
+  saveFile("Empfaenger_"+todayISO()+".json", JSON.stringify({format:"inspektionsplaner-empfaenger",version:1,erstellt:new Date().toISOString(),empfaenger:list},null,2));
+}
+
+/* ---- Projekt speichern / laden ---- */
+function projectData(){ return {format:"inspektionsplaner-projekt", version:1, planId:S.planId, planT0:S.planT0, source:S.source, params:S.params, buildings:S.buildings,
+  features:S.features, dayDates:S.dayDates, team:S.team, org:S.org, assign:S.assign, briefe:S.briefe}; }
+function loadProject(p){
+  if(!p||p.format!=="inspektionsplaner-projekt"||!Array.isArray(p.buildings)) throw new Error("Unbekanntes Projektformat.");
+  S.params={...structuredClone(DEFAULTS),...(p.params||{})}; S.buildings=p.buildings; S.features=p.features||[]; S.dayDates=p.dayDates||{};
+  if(Array.isArray(p.team)) S.team=p.team; if(p.org) S.org=p.org; S.assign=p.assign||{}; S.briefe=mergeBriefe(p.briefe);
+  if(p.planId){ S.planId=p.planId; S.planT0=p.planT0||Date.now(); } S.source=p.source||"";
+  SEQ=Math.max(0,...S.buildings.map(b=>parseInt(String(b.id||"").replace(/\D/g,""))||0));
+  for(const b of S.buildings) if(!b.id) b.id=newId();
+  S.active=-1; S.fitPending=true; saveTeam(); saveBriefe();
+}
+
+/* ---- Ansichten ---- */
+function serienbriefHTML(){
+  const L=briefUnits(), sel=L.filter(x=>br(x.un).on), V=S.briefe.variants;
+  const noT=sel.filter(x=>!termOf(x.un)).length, cnt=k=>sel.filter(x=>varOf(x.un)===k).length;
+  let rows="", lastB=null;
+  for(const x of L){
+    if(x.b!==lastB){ lastB=x.b;
+      rows+=`<tr class="day"><td colspan="12"><span class="dwrap"><b>${esc(x.b.adresse)}</b><span class="hint">${x.b.units.length} Wohnungen</span>
+        <span class="vset">Version hier: ${VKEYS.map(k=>`<button type="button" class="chip" data-setvar="${k}" data-scope="${x.bi}" title="${esc(V[k].label)}">${k}</button>`).join("")}</span></span></td></tr>`; }
+    const un=x.un, e=br(un), r=termOf(un), v=varOf(un), [st,po]=splitAdr(x.b.adresse), a=`data-bb="${x.bi}" data-bu="${x.ui}"`;
+    rows+=`<tr class="${e.on?"":"muted"}">
+      <td><input type="checkbox" ${a} data-bf="on" ${e.on?"checked":""} aria-label="Brief für Wohnung ${esc(un.nr)}"></td>
+      <td class="t">${esc(un.nr)}</td><td class="t">${floorLabel(un.floor)}</td>
+      <td class="t">${r?`${WD[wday(r.date)]} ${chDate(r.date).slice(0,6)} ${hm(r.start)}`:'<span class="pill warn">kein Termin</span>'}</td>
+      <td><select ${a} data-bf="anrede" aria-label="Anrede">${ANREDEN.map(o=>`<option value="${o}" ${e.anrede===o?"selected":""}>${o||"–"}</option>`).join("")}</select></td>
+      <td><input ${a} data-bf="vorname" value="${esc(e.vorname)}" placeholder="Vorname" aria-label="Vorname"></td>
+      <td><input ${a} data-bf="name" value="${esc(e.name)}" placeholder="Name" aria-label="Name"></td>
+      <td><input ${a} data-bf="zusatz" value="${esc(e.zusatz)}" placeholder="c/o" aria-label="Zusatz"></td>
+      <td><input ${a} data-bf="strasse" value="${esc(e.strasse)}" placeholder="${esc(st)}" aria-label="Strasse"></td>
+      <td><span class="plzort"><input class="n" ${a} data-bf="plz" value="${esc(e.plz)}" placeholder="${esc(po.split(" ")[0]||"")}" aria-label="PLZ"><input ${a} data-bf="ort" value="${esc(e.ort)}" placeholder="${esc(po.split(" ").slice(1).join(" "))}" aria-label="Ort"></span></td>
+      <td><span class="vradio" role="radiogroup" aria-label="Version">${VKEYS.map(k=>`<label title="${esc(V[k].label)}"><input type="radio" name="v_${x.bi}_${x.ui}" ${a} data-bf="var" value="${k}" ${v===k?"checked":""}>${k}</label>`).join("")}</span></td>
+      <td><button type="button" class="btn sm" data-prev="${x.bi}:${x.ui}">Vorschau</button></td></tr>`;
+  }
+  const tpl=S.briefe.tpl;
+  return `<section class="panel" role="tabpanel">
+    <div class="bhead"><h2 style="font-size:21px;font-weight:600">Serienbrief</h2>
+      <span class="sp" style="margin-left:auto"><button class="btn primary sm" type="button" id="sb_docx" ${sel.length?"":"disabled"}>Word-Serienbrief (.docx)</button>
+      <button class="btn sm" type="button" id="sb_zip" ${sel.length?"":"disabled"}>Einzelbriefe (.zip)</button>
+      <button class="btn sm" type="button" id="sb_xlsx" ${sel.length?"":"disabled"}>Seriendruck-Daten (.xlsx)</button></span></div>
+    <div class="kpis">
+      <div class="kpi"><span>Wohnungen</span><b>${L.length}</b></div>
+      <div class="kpi"><span>Briefe</span><b>${sel.length}</b></div>
+      <div class="kpi"><span>Ohne Termin</span><b>${noT}</b></div>
+      ${VKEYS.map(k=>`<div class="kpi"><span>Version ${k}</span><b>${cnt(k)}</b></div>`).join("")}
+      <div class="kpi"><span>Vorlage</span><b style="font-size:14px">${tpl?esc(tpl.name):"Standard"}</b></div>
+    </div>
+    <div class="blk"><h3>Empfänger je Wohnung
+      <span class="sp"><button class="btn sm" type="button" id="sb_all">Alle</button><button class="btn sm" type="button" id="sb_none">Keine</button>
+      <span class="vset">Version für alle: ${VKEYS.map(k=>`<button type="button" class="chip" data-setvar="${k}" data-scope="all" title="${esc(V[k].label)}">${k}</button>`).join("")}</span>
+      <button class="btn sm" type="button" id="sb_imp" title="JSON, Excel oder CSV mit Spalten wie Adresse/EGID, Wohnung, Anrede, Vorname, Name, Zusatz, Strasse, PLZ, Ort, Version">Empfänger importieren</button>
+      <button class="btn sm" type="button" id="sb_exp">Empfänger exportieren (JSON)</button></span></h3>
+      <div class="scroll"><table class="sbtable">
+        <thead><tr><th></th><th>Whg</th><th>Stock</th><th>Termin</th><th>Anrede</th><th>Vorname</th><th>Name</th><th>Zusatz</th><th>Strasse</th><th>PLZ / Ort</th><th>Version</th><th></th></tr></thead>
+        <tbody>${rows||'<tr><td colspan="12" class="hint">Keine eingeplanten Wohnungen. Adressen importieren oder erfassen und «einplanen» aktivieren.</td></tr>'}</tbody></table></div>
+      <p class="hint">Leere Postadresse = Adresse der Liegenschaft. Ohne Namen geht der Brief an «An die Bewohnerinnen und Bewohner, Wohnung …». Versionen: ${VKEYS.map(k=>`${k} = ${esc(V[k].label)}`).join(" · ")}. Inhalte unter «Briefvorlagen».</p></div>
+  </section>`;
+}
+function vorlagenHTML(){
+  const B=S.briefe, A=B.absender, sel=briefUnits().filter(x=>br(x.un).on);
+  const fld=(k,lbl,ph="")=>`<label class="f">${lbl}<input data-abs="${k}" value="${esc(A[k])}" placeholder="${esc(ph)}"></label>`;
+  const card=k=>{ const v=B.variants[k], n=sel.filter(x=>varOf(x.un)===k).length;
+    return `<div class="vcard"><div class="vhead"><span class="vk">${k}</span><input data-vk="${k}" data-f="label" value="${esc(v.label)}" aria-label="Bezeichnung Version ${k}"></div>
+      <span class="vcount">${n} Brief${n===1?"":"e"} · ${B.def===k?"Standardversion":"&nbsp;"}</span>
+      <label class="f">Betreff<input data-vk="${k}" data-f="betreff" value="${esc(v.betreff)}"></label>
+      <label class="f">Textbaustein<textarea data-vk="${k}" data-f="text" rows="11">${esc(v.text)}</textarea></label>
+      <div class="vimg">${v.img?`<img src="${v.img.src}" alt="Bild Version ${k}">`:'<span class="hint">Kein Bild</span>'}</div>
+      <div class="acts" style="flex-wrap:wrap;align-items:center"><button class="btn sm" type="button" data-vimg="${k}">${v.img?"Bild ersetzen":"Bild laden"}</button>
+        ${v.img?`<button class="btn ghost sm" type="button" data-vimgdel="${k}">Bild entfernen</button><label class="hint" style="display:flex;gap:4px;align-items:center">Breite <input type="number" min="2" max="17" step="0.5" data-vk="${k}" data-f="imgW" value="${v.imgW}" style="width:64px"> cm</label>`:""}</div></div>`; };
+  const tpl=B.tpl;
+  return `<section class="panel" role="tabpanel">
+    <div class="bhead"><h2 style="font-size:21px;font-weight:600">Briefvorlagen</h2></div>
+    <div class="blk"><h3>Absender und Termin</h3>
+      <div class="formgrid">${fld("firma","Firma","Terradata AG")}${fld("zeile2","Adresszeile 1","Strasse Nr.")}${fld("zeile3","Adresszeile 2","PLZ Ort")}${fld("ort","Ort für Datumszeile","Ort")}${fld("unterzeichner","Unterzeichnet von","Vorname Name")}${fld("funktion","Funktion","z. B. Projektleiter")}
+        <label class="f">Termin im Brief<select id="bs_fenster">${[["genau","genau (von–bis)"],["15","Zeitfenster ±15 min"],["30","Zeitfenster ±30 min"],["halbtag","Halbtag (Vormittag/Nachmittag)"]].map(([v,t])=>`<option value="${v}" ${B.fenster===v?"selected":""}>${t}</option>`).join("")}</select></label>
+        <div class="f"><span>Standardversion</span><span class="vradio">${VKEYS.map(k=>`<label><input type="radio" name="bs_def" value="${k}" ${B.def===k?"checked":""}>${k}</label>`).join("")}</span></div>
+      </div></div>
+    <div class="blk"><h3>Versionen <span class="hint">Pro Wohnung im Tab «Serienbrief» wählbar. Die Texte sind Platzhalter, bis deine Versionen da sind.</span></h3>
+      <div class="vgrid">${VKEYS.map(card).join("")}</div></div>
+    <div class="blk"><h3>Word-Vorlage</h3>
+      <div class="tplbox"><span>Aktiv: <b>${tpl?esc(tpl.name):"Standardvorlage (eingebaut)"}</b></span>
+        <button class="btn sm" type="button" id="tpl_up">${tpl?"Andere Vorlage laden":"Eigene Vorlage laden (.docx)"}</button>
+        ${tpl?'<button class="btn ghost sm" type="button" id="tpl_del">Eigene Vorlage entfernen</button>':""}
+        <button class="btn sm" type="button" id="tpl_dl">Standardvorlage herunterladen</button></div>
+      <p class="hint">In der Word-Vorlage Platzhalter in geschweiften Klammern einsetzen, z. B. <span class="code">{empfaenger}</span>, <span class="code">{betreff}</span>, <span class="code">{text}</span>. Bilder oder Absätze, die nur in einer Version erscheinen sollen, zwischen <span class="code">{#varA}</span> und <span class="code">{/varA}</span> setzen (analog B, C). Den Serienbrief mit Seitenumbrüchen erzeugt die App selbst; die Vorlage beschreibt einen einzelnen Brief.</p>
+      ${tpl&&tpl.tags?`<p class="hint">Platzhalter in «${esc(tpl.name)}»: ${tpl.tags.map(t=>`<span class="code">${esc(t)}</span>`).join(" ")}</p>`:""}</div>
+    <div class="blk"><h3>Platzhalter <span class="hint">Klick kopiert; in Betreff und Textbausteinen sowie in der Word-Vorlage verwendbar</span></h3>
+      <div class="phlist">${PLATZHALTER.map(([k,d])=>`<button type="button" class="ph" data-ph="${k}" title="${esc(d)}">{${k}}</button>`).join("")}</div></div>
+  </section>`;
+}
+let PREV=null;
+function openPreview(bi,ui){
+  const L=briefUnits(), i=L.findIndex(x=>x.bi===bi&&x.ui===ui); if(i<0) return;
+  PREV=i; showPreview(); try{ $("briefDlg").showModal(); }catch(_){ $("briefDlg").setAttribute("open",""); }
+}
+function showPreview(){
+  const L=briefUnits(); if(!L.length) return; PREV=(PREV+L.length)%L.length;
+  const x=L[PREV], f=letterFields(x.b,x.un), V=S.briefe.variants[f.version], nl=s=>esc(s).replace(/\n/g,"<br>");
+  $("bp_title").textContent=`${shortAdr(x.b.adresse)} · Wohnung ${x.un.nr} · Version ${f.version}`;
+  $("bp_paper").innerHTML=`${S.briefe.tpl?`<div class="pnote">Vorschau im Layout der Standardvorlage. Der Word-Export verwendet «${esc(S.briefe.tpl.name)}».</div>`:""}
+    ${!br(x.un).on?'<div class="pnote">Diese Wohnung ist für den Serienbrief abgewählt.</div>':""}
+    ${S.logo&&S.logo.src?`<img class="plogo" src="${S.logo.src}" alt="">`:""}
+    <div class="pabs" style="margin-left:50%">${esc(f.absender)}</div>
+    <div class="pemp">${nl(f.empfaenger)}</div>
+    <p>${esc(f.ort_datum)}</p><p style="margin-top:18px"><b>${esc(f.betreff)}</b></p>
+    <p>${esc(f.briefanrede)}</p><p class="ptext">${esc(f.text)}</p>
+    ${V.img?`<img class="pimg" src="${V.img.src}" alt="" style="width:${Math.min(100,(V.imgW||12)/16.5*100).toFixed(0)}%">`:""}
+    <p style="margin-top:14px">Freundliche Grüsse</p><p>${esc(f.abs_firma)}</p><p style="margin-top:34px">${esc(f.unterzeichner)}${f.funktion?"<br>"+esc(f.funktion):""}</p>`;
+}
+
 /* ---------- Karte ---------- */
 const PAL=["#1d5d8c","#c0632b","#2c7a4b","#7a4ea3","#9a7d10","#b3362f","#2f8f9a","#5f6f7f"];
 /* Reihenfolge der Adressen (nach erstem Termin) und Farbe nach Einsatztag */
@@ -960,9 +1378,14 @@ function renderMain(sched){
     return;
   }
   S.active=Math.min(S.active,S.buildings.length-1);
-  const tabs=`<button class="tab ov" role="tab" aria-selected="${S.active===-1}" data-tab="-1">Übersicht<span class="cnt">${S.buildings.filter(b=>b.include).length} Adr.</span></button>`+S.buildings.map((b,i)=>`<button class="tab ${b.include?"":"off"}" role="tab" aria-selected="${i===S.active}" data-tab="${i}">${esc(shortAdr(b.adresse))}<span class="cnt">${b.units.length} Whg</span></button>`).join("")
+  const nBr=briefUnits().filter(x=>br(x.un).on).length;
+  const tabs=`<button class="tab ov" role="tab" aria-selected="${S.active===-1}" data-tab="-1">Übersicht<span class="cnt">${S.buildings.filter(b=>b.include).length} Adr.</span></button>`
+    +`<button class="tab ov" role="tab" aria-selected="${S.active===-2}" data-tab="-2">Serienbrief<span class="cnt">${nBr} Br.</span></button>`
+    +`<button class="tab ov" role="tab" aria-selected="${S.active===-3}" data-tab="-3">Briefvorlagen</button>`+S.buildings.map((b,i)=>`<button class="tab ${b.include?"":"off"}" role="tab" aria-selected="${i===S.active}" data-tab="${i}">${esc(shortAdr(b.adresse))}<span class="cnt">${b.units.length} Whg</span></button>`).join("")
     + `<button class="tab add" id="tabNew" type="button" title="Neue Adresse erfassen">+ Adresse</button>`;
   if(S.active===-1){ $("main").innerHTML=`<div class="tabs" role="tablist">${tabs}</div>`+renderOverview(sched); return; }
+  if(S.active===-2){ $("main").innerHTML=`<div class="tabs" role="tablist">${tabs}</div>`+serienbriefHTML(); return; }
+  if(S.active===-3){ $("main").innerHTML=`<div class="tabs" role="tablist">${tabs}</div>`+vorlagenHTML(); return; }
   const b=S.buildings[S.active], rows=sched[S.active].rows;
   const total=rows.reduce((s,r)=>s+r.dur,0);
   const first=rows[0], last=rows[rows.length-1];
@@ -1139,7 +1562,7 @@ function floorOpts(sel,gs){
 
 let SCHED=[];
 function render(){
-  SCHED=schedule(); renderParams(SCHED); renderMain(SCHED); renderMap(SCHED);
+  SCHED=schedule(); TM=null; renderParams(SCHED); renderMain(SCHED); renderMap(SCHED);
   const n=S.buildings.filter(b=>b.include).length;
   $("samples").checked=S.buildings.some(b=>b.gwr==="Beispiel");
   $("src").textContent=(S.source?S.source+" · ":"")+n+" von "+S.buildings.length+" Adressen eingeplant";
@@ -1188,6 +1611,20 @@ $("main").addEventListener("click",e=>{
   if(t.dataset.pics){ const pp=S.team.find(x=>x.id===t.dataset.pics); if(pp) saveIcsMany(blocksOfPerson(blocksOf(SCHED),pp.id),"Inspektionen_"+safe(pp.name||"Person")+".ics"); return; }
   if(t.id==="icsAll"){ saveIcsMany(blocksOf(SCHED),"Inspektionen_"+todayISO()+".ics"); return; }
   if(t.id==="inviteAll"){ const bks=blocksOf(SCHED); const ids=new Set(bks.flatMap(assigned)); openCompose(S.team.filter(x=>ids.has(x.id)),bks,"Einladung an das ganze Team"); return; }
+  if(t.id==="sb_docx"){ genSerienbrief(); return; }
+  if(t.id==="sb_zip"){ genEinzel(); return; }
+  if(t.id==="sb_xlsx"){ genMergeXlsx(); return; }
+  if(t.id==="sb_imp"){ $("empfFile").click(); return; }
+  if(t.id==="sb_exp"){ exportEmpf(); return; }
+  if(t.id==="sb_all"||t.id==="sb_none"){ for(const x of briefUnits()) br(x.un).on=t.id==="sb_all"; render(); return; }
+  if(t.dataset.setvar){ const sc=t.dataset.scope; for(const x of briefUnits()) if(sc==="all"||String(x.bi)===sc) br(x.un).var=t.dataset.setvar; render(); return; }
+  if(t.dataset.prev){ const [bi,ui]=t.dataset.prev.split(":").map(Number); openPreview(bi,ui); return; }
+  if(t.dataset.vimg){ S.pendingVar=t.dataset.vimg; $("varImgFile").click(); return; }
+  if(t.dataset.vimgdel){ S.briefe.variants[t.dataset.vimgdel].img=null; saveBriefe(); render(); return; }
+  if(t.id==="tpl_up"){ $("tplFile").click(); return; }
+  if(t.id==="tpl_del"){ S.briefe.tpl=null; saveBriefe(); render(); say("Eigene Vorlage entfernt, die Standardvorlage ist aktiv."); return; }
+  if(t.id==="tpl_dl"){ buildDefaultTemplate().arrayBuffer().then(b=>saveFile("Briefvorlage_Standard.docx", new Blob([b],{type:DOCX_MIME}))); return; }
+  if(t.dataset.ph){ const s="{"+t.dataset.ph+"}"; try{ navigator.clipboard.writeText(s).then(()=>say(s+" kopiert."),()=>say(s)); }catch(_){ say(s); } return; }
   const b=S.buildings[S.active]; if(!b) return;
   if(t.id==="b_remove"){
     if(S.confirmDel===b.id){ S.buildings.splice(S.active,1); S.confirmDel=null; S.active=S.buildings.length?Math.max(0,S.active-1):-1; render(); say("Adresse entfernt."); }
@@ -1206,6 +1643,13 @@ $("main").addEventListener("change",e=>{
   if(t.dataset.day){ setDay(t.dataset.day,t.value); return; }
   if(t.dataset.team){ const pp=S.team.find(x=>x.id===t.dataset.team); if(pp){ const f=t.dataset.f; pp[f]= f==="std"?t.checked:t.value.trim(); saveTeam(); render(); } return; }
   if(t.id==="o_name"||t.id==="o_email"){ S.org[t.id==="o_name"?"name":"email"]=t.value.trim(); saveTeam(); render(); return; }
+  /* Texteingaben ohne Neuzeichnen, damit Tab-Navigation durch die Tabelle erhalten bleibt */
+  if(t.dataset.bf){ const un=(S.buildings[+t.dataset.bb]||{units:[]}).units[+t.dataset.bu]; if(un){ const e=br(un), f=t.dataset.bf;
+      if(f==="on"){ e.on=t.checked; render(); } else if(f==="var"){ e.var=t.value; render(); } else e[f]=t.value.trim(); } return; }
+  if(t.dataset.vk){ const v=S.briefe.variants[t.dataset.vk], f=t.dataset.f; v[f]= f==="imgW"?Math.max(2,Math.min(17,Number(t.value)||12)) : t.value; saveBriefe(); if(f==="imgW"||f==="label") render(); return; }
+  if(t.dataset.abs){ S.briefe.absender[t.dataset.abs]=t.value.trim(); saveBriefe(); return; }
+  if(t.id==="bs_fenster"){ S.briefe.fenster=t.value; saveBriefe(); render(); return; }
+  if(t.name==="bs_def"){ S.briefe.def=t.value; saveBriefe(); render(); return; }
   const b=S.buildings[S.active]; if(!b) return;
   if(t.id==="b_include"){ b.include=t.checked; }
   else if(t.id==="b_adresse"){ b.adresse=t.value.trim()||"Neue Adresse"; }
@@ -1242,7 +1686,13 @@ document.addEventListener("drop",e=>{ e.preventDefault(); document.body.classLis
 function readFile(f){
   const rd=new FileReader();
   rd.onload=()=>{
-    try{ const r=importGeoJSON(JSON.parse(rd.result)); S.source=f.name; render();
+    let j; try{ j=JSON.parse(rd.result); }catch(_){ say("Import fehlgeschlagen: keine gültige JSON-Datei.","err"); return; }
+    try{
+      const pj = j && (j.projekt || (j.format==="inspektionsplaner-projekt" ? j : null));
+      if(pj){ loadProject(pj); render(); say("Projekt «"+f.name+"» geladen: "+S.buildings.length+" Adressen, "+S.buildings.reduce((s,b)=>s+b.units.length,0)+" Wohnungen.","ok"); return; }
+      if(j && (j.format==="inspektionsplaner-empfaenger" || Array.isArray(j))){ sayEmpf(applyEmpf(j.empfaenger||j)); render(); return; }
+    }catch(err){ say("Import fehlgeschlagen: "+(err.message||err),"err"); return; }
+    try{ const r=importGeoJSON(j); S.source=f.name; render();
       say(r.n+" Adresse(n) übernommen"+(r.dup?", "+r.dup+" doppelte übersprungen":"")+(r.skipped?", "+r.skipped+" Objekt(e) ohne Adresse übersprungen":"")+".","ok");
       if(r.n) loadAllGWR();
     }catch(err){ say("Import fehlgeschlagen: "+(err.message||"keine gültige GeoJSON-Datei."),"err"); }
@@ -1389,6 +1839,8 @@ async function exportXlsx(only){
     const ar=allRows(SCHED).map((r,i)=>[i+1,"Tag "+(r.dayIdx+1),xlDate(r.date),WD[wday(r.date)],hm(r.start),hm(r.end),r.dur,r.b.adresse,r.floor,r.nr,r.lage,r.zimmer===""?"":r.zimmer,r.objekt,""]);
     const ac=[...COLS.slice(0,7),["Adresse",34],...COLS.slice(7)];
     addSheet(wb,logoId,sheetName("Alle Termine",used),"Inspektionsplan · Alle Termine",stamp,ac,ar,2);
+    const ml=selectedLetters();
+    if(ml.length) addSheet(wb,logoId,sheetName("Serienbrief",used),"Inspektionsplan · Serienbrief-Daten",stamp+" · Spaltennamen = Platzhalter für den Word-Seriendruck",MERGE_COLS.map(k=>[k,k==="text"?60:k==="empfaenger"?34:16]),ml.map(x=>MERGE_COLS.map(k=>x.f[k]??"")),null);
   }
   for(const {e} of list){
     const data=e.rows.map((r,i)=>[i+1,"Tag "+(r.dayIdx+1),xlDate(r.date),WD[wday(r.date)],hm(r.start),hm(r.end),r.dur,r.floor,r.nr,r.lage,r.zimmer===""?"":r.zimmer,r.objekt,""]);
@@ -1400,12 +1852,13 @@ async function exportXlsx(only){
 }
 function exportJson(){
   const p=S.params;
-  const data={ erstellt:new Date().toISOString(), quelle:S.source||null, parameter:p, einsatztage_uebersteuert:S.dayDates,
+  const data={ format:"inspektionsplaner-bericht", erstellt:new Date().toISOString(), quelle:S.source||null, parameter:p, einsatztage_uebersteuert:S.dayDates,
     team:S.team.map(x=>({name:x.name,email:x.email})), organisator:S.org,
     halbtage:blocksOf(SCHED).map(bk=>({datum:bk.date, halbtag:HALF[bk.half], von:hm(bk.start), bis:hm(bk.end), adressen:bk.adr, termine:bk.rows.length, team:personsOf(bk).map(x=>x.name||x.email)})),
     adressen:SCHED.filter(e=>e.b.include).map(e=>({ adresse:e.b.adresse, egid:e.b.egid||null, geschosse:e.b.geschosse,
       wohnungen:e.b.units.map(x=>({stockwerk:floorLabel(x.floor), wohnung:x.nr, lage:x.lage, zimmer:x.zimmer, dauer_min:unitDur(x,p)})),
       termine:e.rows.map((r,i)=>({nr:i+1, einsatztag:r.dayIdx+1, datum:r.date, von:hm(r.start), bis:hm(r.end), dauer_min:r.dur, kategorie:r.kat, stockwerk:r.floor, wohnung:r.nr, lage:r.lage, zimmer:r.zimmer, objekt:r.objekt})) })) };
+  data.projekt=projectData();
   saveFile("Inspektionsplan_"+todayISO()+".json", JSON.stringify(data,null,2));
 }
 function safe(s){ return String(s).replace(/[^\wäöüÄÖÜ.-]+/g,"_"); }
@@ -1470,6 +1923,11 @@ $("m_copy").onclick=()=>{ const txt="An: "+$("m_to").value+"\nBetreff: "+$("m_su
   try{ navigator.clipboard.writeText(txt).then(ok,()=>{ $("m_body").select(); $("m_hint").textContent="Kopieren nicht erlaubt: Text ist markiert, mit Ctrl+C kopieren."; }); }
   catch(_){ $("m_body").select(); } };
 $("mailDlg").addEventListener("close",()=>{ S.compose=null; });
+$("bp_prev").onclick=()=>{ PREV--; showPreview(); };
+$("bp_next").onclick=()=>{ PREV++; showPreview(); };
+$("empfFile").onchange=e=>{ const f=e.target.files[0]; if(f) importEmpfFile(f); e.target.value=""; };
+$("tplFile").onchange=e=>{ const f=e.target.files[0]; if(f) loadTemplate(f); e.target.value=""; };
+$("varImgFile").onchange=e=>{ const f=e.target.files[0]; if(f&&S.pendingVar) loadVarImg(f,S.pendingVar); e.target.value=""; };
 applyTheme(lsGet("ip_theme")||"light");
 renderLogo();
 render();
